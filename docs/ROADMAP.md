@@ -23,11 +23,12 @@
 - [x] Add upgrade selection screen.
 
 ## Phase 2.5 - Run Loop
-- [x] Add XP bar and visible XP travel.
-- [x] Add level thresholds.
+- [x] Add framed physical XP HUD and visible spatial XP travel.
+- [x] Add slower level thresholds for run pacing.
 - [x] Add death / restart flow.
 - [x] Start runs with one weapon instead of a completed build.
-- [x] Smooth-scroll the typing stream between words.
+- [x] Use a fixed-focus typing anchor to prevent eye jumping.
+- [x] Type upgrade command words instead of number keys.
 
 ## Phase 3 - Threats
 - [ ] Add 3 priority enemies.
