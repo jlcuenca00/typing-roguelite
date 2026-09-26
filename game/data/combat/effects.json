@@ -1,0 +1,29 @@
+{
+  "burn": {
+    "name": "Burn",
+    "duration": 3.0,
+    "max_stacks": 3,
+    "tick_interval": 0.5,
+    "tick_damage": 1.5,
+    "speed_multiplier": 1.0,
+    "color": "#ff7448"
+  },
+  "shock": {
+    "name": "Shock",
+    "duration": 2.5,
+    "max_stacks": 1,
+    "tick_interval": 0.0,
+    "tick_damage": 0.0,
+    "speed_multiplier": 1.0,
+    "color": "#9f8cff"
+  },
+  "freeze": {
+    "name": "Freeze",
+    "duration": 2.0,
+    "max_stacks": 1,
+    "tick_interval": 0.0,
+    "tick_damage": 0.0,
+    "speed_multiplier": 0.58,
+    "color": "#7bdcff"
+  }
+}
