@@ -7,9 +7,10 @@ const UPGRADES_PATH := "res://data/combat/upgrades.json"
 const PLAYER_RADIUS := 14.0
 const ENEMY_RADIUS := 10.0
 const BULLET_RADIUS := 3.0
-const SPAWN_RADIUS := 430.0
 const DANGER_RADIUS := 42.0
 const BASE_MAX_HP := 100.0
+const SPAWN_MARGIN_MIN := 36.0
+const SPAWN_MARGIN_MAX := 82.0
 
 const WORD_BUFFER := 24
 const TYPING_LINE_WIDTH := 614.0
@@ -29,6 +30,24 @@ const WAVE_ENEMY_COUNTS := [
 	62,
 	80
 ]
+
+# Potential XP available if the player kills every enemy in the wave.
+# The budget grows faster later in the run so stronger builds can bank
+# multiple level-ups, while leaked enemies still mean lost XP.
+const WAVE_XP_BUDGETS := [
+	8,
+	12,
+	18,
+	28,
+	42,
+	72,
+	125,
+	230
+]
+
+const XP_GOAL_BASE := 8.0
+const XP_GOAL_GROWTH := 1.45
+const XP_GOAL_POWER := 0.80
 
 var rng := RandomNumberGenerator.new()
 var combat = CombatSystemScript.new()
@@ -80,6 +99,8 @@ var wave_spawning := true
 var wave_intermission := false
 var wave_continue_waiting := false
 var wave_continue_typed := ""
+var wave_xp_payouts: Array[int] = []
+var wave_xp_spawn_cursor := 0
 
 var correct_keys := 0
 var incorrect_keys := 0
@@ -89,7 +110,7 @@ var typed_characters := 0
 var level := 1
 var xp_total := 0
 var xp_in_level := 0
-var xp_required := 6
+var xp_required := 8
 var pending_level_ups := 0
 var level_up_open := false
 var upgrade_definitions: Array = []
@@ -99,7 +120,8 @@ var upgrade_candidate_index := -1
 var upgrade_typed := ""
 var upgrade_error_time := 0.0
 var xp_hud_pulse := 0.0
-var xp_impact_time := 0.0
+var xp_bar_jump_time := 0.0
+var xp_bar_base_y := 0.0
 
 var reaction_counts := {
 	"shatter": 0,
@@ -115,7 +137,6 @@ var reaction_counts := {
 @onready var xp_panel: Control = $HUD/XPPanel
 @onready var xp_bar_background: Control = $HUD/XPPanel/XPBarBackground
 @onready var xp_bar_fill: ColorRect = $HUD/XPPanel/XPBarBackground/XPBarFill
-@onready var xp_impact_flash: ColorRect = $HUD/XPPanel/XPBarBackground/XPImpactFlash
 @onready var xp_count_label: Label = $HUD/XPPanel/XPCount
 @onready var level_label: Label = $HUD/XPPanel/LevelLabel
 @onready var wave_label: Label = $HUD/WaveLabel
@@ -144,6 +165,8 @@ func _ready() -> void:
 	combat.load_definitions("starter")
 	_load_words()
 	_load_upgrades()
+	xp_bar_base_y = xp_bar_background.position.y
+	_prepare_wave_xp_payouts(current_wave)
 
 	for i in range(WORD_BUFFER):
 		_append_random_word()
@@ -519,18 +542,48 @@ func _execute_attack(attack: Dictionary) -> void:
 
 
 func _spawn_enemy() -> void:
-	var center := get_viewport_rect().size * 0.5
-	var angle := rng.randf_range(0.0, TAU)
-	var position := center + Vector2.RIGHT.rotated(angle) * SPAWN_RADIUS
+	var viewport_size := get_viewport_rect().size
+	var margin := rng.randf_range(SPAWN_MARGIN_MIN, SPAWN_MARGIN_MAX)
+	var edge := rng.randi_range(0, 3)
+	var position := Vector2.ZERO
+
+	match edge:
+		0: # top
+			position = Vector2(
+				rng.randf_range(-margin, viewport_size.x + margin),
+				-margin
+			)
+		1: # right
+			position = Vector2(
+				viewport_size.x + margin,
+				rng.randf_range(-margin, viewport_size.y + margin)
+			)
+		2: # bottom
+			position = Vector2(
+				rng.randf_range(-margin, viewport_size.x + margin),
+				viewport_size.y + margin
+			)
+		_: # left
+			position = Vector2(
+				-margin,
+				rng.randf_range(-margin, viewport_size.y + margin)
+			)
+
 	var wave_scale := float(current_wave - 1)
 	var speed := rng.randf_range(38.0, 62.0) + wave_scale * 2.2 + minf(elapsed * 0.06, 12.0)
 	var hp_value := 44.0 + wave_scale * 4.5 + minf(elapsed * 0.05, 14.0)
+	var xp_value := 1
+
+	if wave_xp_spawn_cursor < wave_xp_payouts.size():
+		xp_value = wave_xp_payouts[wave_xp_spawn_cursor]
+	wave_xp_spawn_cursor += 1
 
 	enemies.append({
 		"position": position,
 		"speed": speed,
 		"hp": hp_value,
 		"max_hp": hp_value,
+		"xp_value": xp_value,
 		"flash": 0.0,
 		"knockback": Vector2.ZERO,
 		"statuses": {}
@@ -901,11 +954,12 @@ func _kill_enemy(index: int, position: Vector2) -> void:
 	if index < 0 or index >= enemies.size():
 		return
 
+	var xp_value := int(enemies[index].get("xp_value", 1))
 	enemies.remove_at(index)
 	kills += 1
 	wave_resolved_count += 1
 	_spawn_death_particles(position)
-	_spawn_xp_particles(position, 1)
+	_spawn_xp_particles(position, xp_value)
 
 
 # XP / progression ------------------------------------------------------------
@@ -924,11 +978,16 @@ func _grant_xp(amount: int) -> void:
 
 
 func _xp_required_for_level(current_level: int) -> int:
-	# Survivor-style progression benefits from a nonlinear requirement curve:
-	# early levels arrive quickly, while later levels increasingly resist the
-	# larger enemy counts. This is deliberately scaled to our 1-XP normal enemy.
-	var n := float(maxi(current_level - 1, 0))
-	return int(round(6.0 + 2.25 * n + 0.65 * n * n))
+	# Adapted from the useful part of shatAAAAp!'s model: level costs rise
+	# nonlinearly while each wave's available XP budget also ramps upward.
+	var pick_index := float(maxi(current_level - 1, 0))
+	return int(round(
+		XP_GOAL_BASE
+		* pow(
+			XP_GOAL_GROWTH,
+			pow(pick_index, XP_GOAL_POWER)
+		)
+	))
 
 
 func _update_xp_ui() -> void:
@@ -951,17 +1010,20 @@ func _update_xp_ui() -> void:
 
 func _update_xp_hud(delta: float) -> void:
 	xp_hud_pulse = maxf(xp_hud_pulse - delta, 0.0)
-	xp_impact_time = maxf(xp_impact_time - delta, 0.0)
+	xp_bar_jump_time = maxf(xp_bar_jump_time - delta, 0.0)
 
 	var pulse := clampf(xp_hud_pulse / 0.18, 0.0, 1.0)
 	xp_bar_fill.color = Color(0.42, 0.95, 0.72, 1.0).lerp(
 		Color(0.82, 1.0, 0.91, 1.0),
-		pulse * 0.75
+		pulse * 0.55
 	)
 
-	xp_impact_flash.visible = xp_impact_time > 0.0
-	if xp_impact_flash.visible:
-		xp_impact_flash.modulate.a = clampf(xp_impact_time / 0.24, 0.0, 1.0)
+	var jump := 0.0
+	if xp_bar_jump_time > 0.0:
+		var progress := 1.0 - xp_bar_jump_time / 0.22
+		jump = sin(progress * PI) * 3.5
+
+	xp_bar_background.position.y = xp_bar_base_y - jump
 
 
 func _load_upgrades() -> void:
@@ -1270,6 +1332,38 @@ func _wave_enemy_count(wave_number: int) -> int:
 	return int(WAVE_ENEMY_COUNTS[index])
 
 
+func _wave_xp_budget(wave_number: int) -> int:
+	var index := clampi(
+		wave_number - 1,
+		0,
+		WAVE_XP_BUDGETS.size() - 1
+	)
+	return int(WAVE_XP_BUDGETS[index])
+
+
+func _prepare_wave_xp_payouts(wave_number: int) -> void:
+	var enemy_count := _wave_enemy_count(wave_number)
+	var budget := maxi(_wave_xp_budget(wave_number), enemy_count)
+
+	wave_xp_payouts.clear()
+	wave_xp_spawn_cursor = 0
+
+	# Every enemy is worth at least 1 XP. The remaining wave budget is broken
+	# into random little clumps, so some kills matter more without changing the
+	# total potential XP available in the wave.
+	for i in range(enemy_count):
+		wave_xp_payouts.append(1)
+
+	var remaining := budget - enemy_count
+	while remaining > 0:
+		var index := rng.randi_range(0, enemy_count - 1)
+		var chunk := mini(rng.randi_range(1, 3), remaining)
+		wave_xp_payouts[index] += chunk
+		remaining -= chunk
+
+	wave_xp_payouts.shuffle()
+
+
 func _has_pending_xp_particles() -> bool:
 	for particle in particles:
 		if String(particle.get("kind", "")) == "xp":
@@ -1359,7 +1453,28 @@ func _start_next_wave() -> void:
 	wave_spawning = true
 	spawn_timer = 0.35
 	spawn_interval = maxf(0.30, 0.95 - float(current_wave - 1) * 0.045)
+	_prepare_wave_xp_payouts(current_wave)
+	_reset_typing_for_new_wave()
 	_update_wave_ui()
+
+
+func _reset_typing_for_new_wave() -> void:
+	word_queue.clear()
+	active_word_index = 0
+	typed_index = 0
+	typing_line_offset_y = 0.0
+	caret_idle_time = 0.0
+	caret_initialized = false
+	caret_target_x = TYPING_LEFT_X
+	caret_target_y = 4.0
+	caret_visual_x = TYPING_LEFT_X
+	caret_visual_y = 4.0
+	typing_panel.position.y = 0.0
+
+	for i in range(WORD_BUFFER):
+		_append_random_word()
+
+	_update_typing_ui()
 
 
 func _complete_run() -> void:
@@ -1609,16 +1724,8 @@ func _spawn_xp_landing_particles(position: Vector2, strong: bool) -> void:
 		})
 
 
-func _trigger_xp_bar_impact(global_x: float) -> void:
-	var local_x := global_x - xp_bar_background.global_position.x
-	xp_impact_flash.position.x = clampf(
-		local_x - xp_impact_flash.size.x * 0.5,
-		0.0,
-		xp_bar_background.size.x - xp_impact_flash.size.x
-	)
-	xp_impact_time = 0.24
-	xp_impact_flash.visible = true
-	xp_impact_flash.modulate.a = 1.0
+func _trigger_xp_bar_impact(_global_x: float) -> void:
+	xp_bar_jump_time = 0.22
 
 
 func _spawn_damage_number(
