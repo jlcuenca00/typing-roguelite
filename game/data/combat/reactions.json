@@ -1,0 +1,24 @@
+{
+  "reactions": [
+    {
+      "id": "shatter",
+      "name": "Shatter",
+      "requires_effects": ["freeze"],
+      "requires_tags": ["blast"],
+      "consume_effects": ["freeze"],
+      "area_radius": 72.0,
+      "area_damage": 13.0,
+      "color": "#bdefff"
+    },
+    {
+      "id": "overload",
+      "name": "Overload",
+      "requires_effects": ["shock"],
+      "requires_tags": ["blast"],
+      "consume_effects": ["shock"],
+      "area_radius": 88.0,
+      "area_damage": 17.0,
+      "color": "#c2a6ff"
+    }
+  ]
+}
