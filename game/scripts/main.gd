@@ -34,7 +34,7 @@ var damage_taken := 0
 func _ready() -> void:
 	rng.randomize()
 	_load_words()
-	for i in 6:
+	for i in range(6):
 		_append_random_word()
 	_update_typing_ui()
 	_update_stats()
@@ -108,7 +108,7 @@ func _complete_word() -> void:
 	_append_random_word()
 
 	# Word completion is deliberately much stronger than a normal keystroke.
-	for i in 4:
+	for i in range(4):
 		_fire_at_nearest_enemy(13.0)
 
 
@@ -155,7 +155,7 @@ func _fire_at_nearest_enemy(damage: float) -> void:
 	var nearest_index := 0
 	var nearest_distance_sq := INF
 
-	for i in enemies.size():
+	for i in range(enemies.size()):
 		var enemy_pos: Vector2 = enemies[i]["position"]
 		var distance_sq := center.distance_squared_to(enemy_pos)
 		if distance_sq < nearest_distance_sq:
