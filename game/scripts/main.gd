@@ -27,6 +27,13 @@ var player_recoil := 0.0
 var shake_time := 0.0
 var shake_strength := 0.0
 
+# The caret is a separate overlay, like Monkeytype's. It never becomes part
+# of the text string, so advancing it cannot change the word's layout.
+var caret_target_x := 0.0
+var caret_visual_x := 0.0
+var caret_initialized := false
+var caret_idle_time := 0.0
+
 var kills := 0
 var xp := 0
 var words_completed := 0
@@ -39,6 +46,7 @@ var incorrect_keys := 0
 var typed_characters := 0
 
 @onready var typing_panel: RichTextLabel = $HUD/TypingPanel
+@onready var typing_caret: ColorRect = $HUD/TypingCaret
 @onready var stats_label: Label = $HUD/Stats
 
 
@@ -47,7 +55,7 @@ func _ready() -> void:
 	_load_words()
 	for i in range(6):
 		_append_random_word()
-	_update_typing_ui()
+	_update_typing_ui(true)
 	_update_stats()
 	queue_redraw()
 
@@ -71,6 +79,7 @@ func _process(delta: float) -> void:
 	_update_damage_numbers(delta)
 	_update_stats()
 	_update_canvas_shake()
+	_update_typing_caret(delta)
 	queue_redraw()
 
 
@@ -85,8 +94,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 
 	typed_characters += 1
+	caret_idle_time = 0.0
 	var current := word_queue[0]
 	var expected := current.substr(typed_index, 1)
+	var snap_caret := false
 
 	if typed == expected:
 		correct_keys += 1
@@ -99,12 +110,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 		if typed_index >= current.length():
 			_complete_word()
+			snap_caret = true
 	else:
 		incorrect_keys += 1
 		streak = 0
 		error_flash = 0.16
 
-	_update_typing_ui()
+	_update_typing_ui(snap_caret)
 
 
 func _load_words() -> void:
@@ -309,36 +321,74 @@ func _update_damage_numbers(delta: float) -> void:
 			damage_numbers[i] = number
 
 
-func _update_typing_ui() -> void:
+func _update_typing_ui(snap_caret: bool = false) -> void:
 	if word_queue.is_empty():
 		return
 
-	var current := word_queue[0]
-	var completed := current.substr(0, typed_index)
-	var next_character := ""
-	var remaining := ""
-
-	if typed_index < current.length():
-		next_character = current.substr(typed_index, 1)
-		remaining = current.substr(typed_index + 1)
-
+	# Do not insert a "|" character into the line. The displayed text remains
+	# pixel-identical while typing; only the overlay caret moves.
 	var pieces: Array[String] = []
-	# Keep the word one color. A thin caret marks the exact insertion point
-	# without turning the next character into a second color block.
-	var current_markup := "[color=#ffffff]" + completed
-	if next_character != "":
-		current_markup += "[color=#8ff0c2]│[/color]" + next_character
-	current_markup += remaining + "[/color]"
-	pieces.append(current_markup)
+	pieces.append("[color=#ffffff]" + word_queue[0] + "[/color]")
 
 	for i in range(1, mini(word_queue.size(), 6)):
 		pieces.append("[color=#697180]" + word_queue[i] + "[/color]")
 
-	var prefix := ""
-	if error_flash > 0.0:
-		prefix = "[color=#ff6673]×[/color] "
+	typing_panel.text = "[center]" + " ".join(pieces) + "[/center]"
+	_update_caret_target(snap_caret)
 
-	typing_panel.text = "[center][bgcolor=#252a33cc]  " + prefix + " ".join(pieces) + "  [/bgcolor][/center]"
+
+func _update_caret_target(snap: bool = false) -> void:
+	if word_queue.is_empty():
+		return
+
+	var font := typing_panel.get_theme_font("normal_font")
+	var font_size := typing_panel.get_theme_font_size("normal_font_size")
+	var visible_words: Array[String] = []
+
+	for i in range(mini(word_queue.size(), 6)):
+		visible_words.append(word_queue[i])
+
+	var plain_line := " ".join(visible_words)
+	var completed := word_queue[0].substr(0, typed_index)
+	var total_width := font.get_string_size(
+		plain_line, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size
+	).x
+	var completed_width := font.get_string_size(
+		completed, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size
+	).x
+
+	var line_left := typing_panel.position.x + (typing_panel.size.x - total_width) * 0.5
+	caret_target_x = line_left + completed_width - typing_caret.size.x * 0.5
+
+	if snap or not caret_initialized:
+		caret_visual_x = caret_target_x
+		caret_initialized = true
+		typing_caret.position.x = caret_visual_x
+
+
+func _update_typing_caret(delta: float) -> void:
+	if not caret_initialized:
+		return
+
+	caret_idle_time += delta
+
+	# Roughly Monkeytype's "fast" feel: settle over a few frames rather than
+	# teleporting, while the underlying letters never move.
+	var follow := 1.0 - exp(-35.0 * delta)
+	caret_visual_x = lerpf(caret_visual_x, caret_target_x, follow)
+	typing_caret.position.x = caret_visual_x
+	typing_caret.position.y = typing_panel.position.y + 4.0
+
+	if error_flash > 0.0:
+		typing_caret.color = Color(1.0, 0.36, 0.42, 1.0)
+		typing_caret.modulate.a = 1.0
+	elif caret_idle_time > 0.65:
+		typing_caret.color = Color(0.56, 0.94, 0.76, 1.0)
+		var blink_phase := (sin((caret_idle_time - 0.65) * TAU * 1.15) + 1.0) * 0.5
+		typing_caret.modulate.a = lerpf(0.22, 1.0, blink_phase)
+	else:
+		typing_caret.color = Color(0.56, 0.94, 0.76, 1.0)
+		typing_caret.modulate.a = 1.0
 
 
 func _update_stats() -> void:
