@@ -8,29 +8,36 @@ script = ExtResource("1_main")
 [node name="HUD" type="CanvasLayer" parent="."]
 
 [node name="TypingPanel" type="RichTextLabel" parent="HUD"]
-offset_left = 250.0
-offset_top = 430.0
-offset_right = 1030.0
+offset_left = 190.0
+offset_top = 424.0
+offset_right = 1090.0
 offset_bottom = 500.0
 bbcode_enabled = true
 fit_content = true
 scroll_active = false
 mouse_filter = 2
 theme_override_font_sizes/normal_font_size = 28
+theme_override_constants/outline_size = 4
+theme_override_colors/font_outline_color = Color(0.04, 0.045, 0.055, 0.9)
 text = "typing roguelite"
 
 [node name="Stats" type="Label" parent="HUD"]
 offset_left = 24.0
 offset_top = 20.0
-offset_right = 500.0
+offset_right = 900.0
 offset_bottom = 70.0
 theme_override_font_sizes/font_size = 18
+theme_override_constants/outline_size = 3
+theme_override_colors/font_outline_color = Color(0.04, 0.045, 0.055, 0.85)
 text = "Initializing..."
 
 [node name="Hint" type="Label" parent="HUD"]
 offset_left = 24.0
 offset_top = 675.0
-offset_right = 900.0
+offset_right = 1000.0
 offset_bottom = 710.0
 theme_override_font_sizes/font_size = 16
-text = "Type the highlighted word. Correct keys fire. Completing a word releases a burst."
+theme_override_colors/font_color = Color(0.72, 0.75, 0.80, 1)
+theme_override_constants/outline_size = 3
+theme_override_colors/font_outline_color = Color(0.04, 0.045, 0.055, 0.85)
+text = "Correct keys fire. Complete a word for a burst. Mistakes reset your streak."
