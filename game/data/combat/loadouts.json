@@ -1,0 +1,13 @@
+{
+  "prototype": {
+    "weapons": ["smg", "pistol", "shotgun"],
+    "effect_bindings": {
+      "smg": [
+        { "effect_id": "freeze", "chance": 0.12 }
+      ],
+      "pistol": [
+        { "effect_id": "shock", "chance": 0.35 }
+      ]
+    }
+  }
+}
