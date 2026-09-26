@@ -13,9 +13,12 @@ var loadouts: Dictionary = {}
 
 var active_weapon_ids: Array[String] = []
 var effect_bindings: Dictionary = {}
+var weapon_modifiers: Dictionary = {}
+var global_damage_multiplier := 1.0
+var reaction_damage_multiplier := 1.0
 
 
-func load_definitions(loadout_id: String = "prototype") -> bool:
+func load_definitions(loadout_id: String = "starter") -> bool:
 	weapons = _load_json_dictionary(WEAPONS_PATH)
 	effects = _load_json_dictionary(EFFECTS_PATH)
 	var reaction_data := _load_json_dictionary(REACTIONS_PATH)
@@ -36,6 +39,10 @@ func equip_loadout(loadout_id: String) -> bool:
 
 	var loadout: Dictionary = loadouts[loadout_id]
 	active_weapon_ids.clear()
+	weapon_modifiers.clear()
+	global_damage_multiplier = 1.0
+	reaction_damage_multiplier = 1.0
+
 	for weapon_id in loadout.get("weapons", []):
 		if weapons.has(weapon_id):
 			active_weapon_ids.append(String(weapon_id))
@@ -58,6 +65,9 @@ func build_attacks(trigger_id: String, context: Dictionary = {}) -> Array[Dictio
 			continue
 
 		var attack := weapon.duplicate(true)
+		_apply_weapon_modifiers(attack, weapon_id)
+
+		attack["damage"] = float(attack.get("damage", 1.0)) * global_damage_multiplier
 		attack["weapon_id"] = weapon_id
 		attack["trigger"] = trigger_id
 		attack["context"] = context.duplicate(true)
@@ -65,6 +75,70 @@ func build_attacks(trigger_id: String, context: Dictionary = {}) -> Array[Dictio
 		attacks.append(attack)
 
 	return attacks
+
+
+func is_weapon_active(weapon_id: String) -> bool:
+	return active_weapon_ids.has(weapon_id)
+
+
+func unlock_weapon(weapon_id: String) -> bool:
+	if not weapons.has(weapon_id):
+		return false
+	if active_weapon_ids.has(weapon_id):
+		return false
+
+	active_weapon_ids.append(weapon_id)
+	return true
+
+
+func multiply_weapon_stat(weapon_id: String, stat: String, factor: float) -> void:
+	var modifiers: Dictionary = weapon_modifiers.get(weapon_id, {})
+	var multipliers: Dictionary = modifiers.get("multipliers", {})
+	multipliers[stat] = float(multipliers.get(stat, 1.0)) * factor
+	modifiers["multipliers"] = multipliers
+	weapon_modifiers[weapon_id] = modifiers
+
+
+func add_weapon_stat(weapon_id: String, stat: String, amount: float) -> void:
+	var modifiers: Dictionary = weapon_modifiers.get(weapon_id, {})
+	var additions: Dictionary = modifiers.get("additions", {})
+	additions[stat] = float(additions.get(stat, 0.0)) + amount
+	modifiers["additions"] = additions
+	weapon_modifiers[weapon_id] = modifiers
+
+
+func multiply_global_damage(factor: float) -> void:
+	global_damage_multiplier *= factor
+
+
+func multiply_reaction_damage(factor: float) -> void:
+	reaction_damage_multiplier *= factor
+
+
+func add_or_increase_effect_binding(weapon_id: String, effect_id: String, chance_delta: float) -> void:
+	var bindings: Array = effect_bindings.get(weapon_id, []).duplicate(true)
+
+	for i in range(bindings.size()):
+		var binding: Dictionary = bindings[i]
+		if String(binding.get("effect_id", "")) == effect_id:
+			binding["chance"] = clampf(float(binding.get("chance", 0.0)) + chance_delta, 0.0, 1.0)
+			bindings[i] = binding
+			effect_bindings[weapon_id] = bindings
+			return
+
+	bindings.append({
+		"effect_id": effect_id,
+		"chance": clampf(chance_delta, 0.0, 1.0)
+	})
+	effect_bindings[weapon_id] = bindings
+
+
+func get_effect_binding_chance(weapon_id: String, effect_id: String) -> float:
+	for raw_binding in effect_bindings.get(weapon_id, []):
+		var binding: Dictionary = raw_binding
+		if String(binding.get("effect_id", "")) == effect_id:
+			return float(binding.get("chance", 0.0))
+	return 0.0
 
 
 func get_effect_definition(effect_id: String) -> Dictionary:
@@ -87,7 +161,9 @@ func resolve_reactions(active_effects: Dictionary, incoming_tags: Array) -> Arra
 		if not _array_has_all(incoming_tags, required_tags):
 			continue
 
-		resolved.append(reaction.duplicate(true))
+		var resolved_reaction := reaction.duplicate(true)
+		resolved_reaction["area_damage"] = float(resolved_reaction.get("area_damage", 0.0)) * reaction_damage_multiplier
+		resolved.append(resolved_reaction)
 
 	return resolved
 
@@ -95,6 +171,23 @@ func resolve_reactions(active_effects: Dictionary, incoming_tags: Array) -> Arra
 func consume_reaction_effects(active_effects: Dictionary, reaction: Dictionary) -> void:
 	for effect_id in reaction.get("consume_effects", []):
 		active_effects.erase(String(effect_id))
+
+
+func _apply_weapon_modifiers(attack: Dictionary, weapon_id: String) -> void:
+	var modifiers: Dictionary = weapon_modifiers.get(weapon_id, {})
+	var multipliers: Dictionary = modifiers.get("multipliers", {})
+	var additions: Dictionary = modifiers.get("additions", {})
+
+	for stat in multipliers.keys():
+		if attack.has(stat):
+			attack[stat] = float(attack[stat]) * float(multipliers[stat])
+
+	for stat in additions.keys():
+		if attack.has(stat):
+			if attack[stat] is int:
+				attack[stat] = int(attack[stat]) + int(round(float(additions[stat])))
+			else:
+				attack[stat] = float(attack[stat]) + float(additions[stat])
 
 
 func _dictionary_has_all(source: Dictionary, required: Array) -> bool:
