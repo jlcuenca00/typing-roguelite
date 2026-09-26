@@ -16,17 +16,17 @@ const VISIBLE_WORDS := 5
 const FIXED_WORD_X := 48.0
 
 const TOTAL_WAVES := 8
-# Early waves are intentionally short so they contain fewer enemies.
-# Later waves get longer, giving the build more time to ramp and be tested.
-const WAVE_DURATIONS := [
-	25.0,
-	35.0,
-	45.0,
-	55.0,
-	65.0,
-	75.0,
-	85.0,
-	95.0
+# Waves are defined by enemy count, not a timer. Early waves are small and
+# readable; later waves scale into larger hordes as the build comes online.
+const WAVE_ENEMY_COUNTS := [
+	8,
+	12,
+	18,
+	26,
+	36,
+	48,
+	62,
+	80
 ]
 
 var rng := RandomNumberGenerator.new()
@@ -69,7 +69,8 @@ var run_over := false
 var run_complete := false
 
 var current_wave := 1
-var wave_time_remaining := 25.0
+var wave_spawned_count := 0
+var wave_resolved_count := 0
 var wave_spawning := true
 var wave_intermission := false
 
@@ -134,7 +135,6 @@ func _ready() -> void:
 	combat.load_definitions("starter")
 	_load_words()
 	_load_upgrades()
-	wave_time_remaining = _wave_duration_for(current_wave)
 
 	for i in range(WORD_BUFFER):
 		_append_random_word()
@@ -166,15 +166,15 @@ func _process(delta: float) -> void:
 	shake_time = maxf(shake_time - delta, 0.0)
 
 	if wave_spawning:
-		wave_time_remaining = maxf(wave_time_remaining - delta, 0.0)
 		spawn_timer -= delta
 
 		if spawn_timer <= 0.0:
 			_spawn_enemy()
+			wave_spawned_count += 1
 			spawn_timer = spawn_interval
 
-		if wave_time_remaining <= 0.0:
-			wave_spawning = false
+			if wave_spawned_count >= _wave_enemy_count(current_wave):
+				wave_spawning = false
 
 	_update_enemies(delta)
 	_update_bullets(delta)
@@ -183,7 +183,13 @@ func _process(delta: float) -> void:
 	_update_particles(delta)
 	_update_damage_numbers(delta)
 
-	if not wave_spawning and enemies.is_empty() and not _has_pending_xp_particles() and not wave_intermission:
+	if (
+		not wave_spawning
+		and wave_resolved_count >= _wave_enemy_count(current_wave)
+		and enemies.is_empty()
+		and not _has_pending_xp_particles()
+		and not wave_intermission
+	):
 		_finish_wave()
 
 	_update_wave_ui()
@@ -457,6 +463,7 @@ func _update_enemies(delta: float) -> void:
 				7
 			)
 			enemies.remove_at(i)
+			wave_resolved_count += 1
 
 			if hp <= 0.0:
 				_end_run()
@@ -778,6 +785,7 @@ func _kill_enemy(index: int, position: Vector2) -> void:
 
 	enemies.remove_at(index)
 	kills += 1
+	wave_resolved_count += 1
 	_spawn_death_particles(position)
 	_spawn_xp_particles(position, 1)
 
@@ -1126,13 +1134,13 @@ func _apply_upgrade(upgrade: Dictionary) -> void:
 	_update_stats()
 
 
-func _wave_duration_for(wave_number: int) -> float:
+func _wave_enemy_count(wave_number: int) -> int:
 	var index := clampi(
 		wave_number - 1,
 		0,
-		WAVE_DURATIONS.size() - 1
+		WAVE_ENEMY_COUNTS.size() - 1
 	)
-	return float(WAVE_DURATIONS[index])
+	return int(WAVE_ENEMY_COUNTS[index])
 
 
 func _has_pending_xp_particles() -> bool:
@@ -1166,7 +1174,8 @@ func _start_next_wave() -> void:
 	upgrade_overlay.visible = false
 	wave_intermission = false
 	current_wave += 1
-	wave_time_remaining = _wave_duration_for(current_wave)
+	wave_spawned_count = 0
+	wave_resolved_count = 0
 	wave_spawning = true
 	spawn_timer = 0.35
 	spawn_interval = maxf(0.30, 0.95 - float(current_wave - 1) * 0.045)
@@ -1200,16 +1209,13 @@ func _update_wave_ui() -> void:
 		]
 	elif wave_intermission:
 		wave_label.text = "WAVE %d / %d   CLEARED" % [current_wave, TOTAL_WAVES]
-	elif wave_spawning:
-		wave_label.text = "WAVE %d / %d   %02d" % [
+	else:
+		var total_enemies := _wave_enemy_count(current_wave)
+		var remaining := maxi(total_enemies - wave_resolved_count, 0)
+		wave_label.text = "WAVE %d / %d   ENEMIES %d" % [
 			current_wave,
 			TOTAL_WAVES,
-			int(ceil(wave_time_remaining))
-		]
-	else:
-		wave_label.text = "WAVE %d / %d   CLEAR THE REST" % [
-			current_wave,
-			TOTAL_WAVES
+			remaining
 		]
 
 
