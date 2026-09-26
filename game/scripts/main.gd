@@ -16,7 +16,18 @@ const VISIBLE_WORDS := 5
 const FIXED_WORD_X := 48.0
 
 const TOTAL_WAVES := 8
-const WAVE_DURATION := 60.0
+# Early waves are intentionally short so they contain fewer enemies.
+# Later waves get longer, giving the build more time to ramp and be tested.
+const WAVE_DURATIONS := [
+	25.0,
+	35.0,
+	45.0,
+	55.0,
+	65.0,
+	75.0,
+	85.0,
+	95.0
+]
 
 var rng := RandomNumberGenerator.new()
 var combat = CombatSystemScript.new()
@@ -58,7 +69,7 @@ var run_over := false
 var run_complete := false
 
 var current_wave := 1
-var wave_time_remaining := WAVE_DURATION
+var wave_time_remaining := 25.0
 var wave_spawning := true
 var wave_intermission := false
 
@@ -123,6 +134,7 @@ func _ready() -> void:
 	combat.load_definitions("starter")
 	_load_words()
 	_load_upgrades()
+	wave_time_remaining = _wave_duration_for(current_wave)
 
 	for i in range(WORD_BUFFER):
 		_append_random_word()
@@ -1114,6 +1126,15 @@ func _apply_upgrade(upgrade: Dictionary) -> void:
 	_update_stats()
 
 
+func _wave_duration_for(wave_number: int) -> float:
+	var index := clampi(
+		wave_number - 1,
+		0,
+		WAVE_DURATIONS.size() - 1
+	)
+	return float(WAVE_DURATIONS[index])
+
+
 func _has_pending_xp_particles() -> bool:
 	for particle in particles:
 		if String(particle.get("kind", "")) == "xp":
@@ -1145,7 +1166,7 @@ func _start_next_wave() -> void:
 	upgrade_overlay.visible = false
 	wave_intermission = false
 	current_wave += 1
-	wave_time_remaining = WAVE_DURATION
+	wave_time_remaining = _wave_duration_for(current_wave)
 	wave_spawning = true
 	spawn_timer = 0.35
 	spawn_interval = maxf(0.30, 0.95 - float(current_wave - 1) * 0.045)
