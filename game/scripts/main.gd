@@ -15,8 +15,8 @@ const WORD_BUFFER := 6
 const VISIBLE_WORDS := 5
 const FIXED_WORD_X := 48.0
 
-const TOTAL_WAVES := 13
-const WAVE_DURATION := 35.0
+const TOTAL_WAVES := 8
+const WAVE_DURATION := 60.0
 
 var rng := RandomNumberGenerator.new()
 var combat = CombatSystemScript.new()
@@ -1158,7 +1158,8 @@ func _complete_run() -> void:
 	wave_spawning = false
 	run_end_title.text = "RUN COMPLETE"
 	death_overlay.visible = true
-	death_summary.text = "13 WAVES CLEARED   LEVEL %d   KILLS %d\nWORDS %d   BEST STREAK %d   WPM %d\n\nPress R to restart" % [
+	death_summary.text = "%d WAVES CLEARED   LEVEL %d   KILLS %d\nWORDS %d   BEST STREAK %d   WPM %d\n\nPress R to restart" % [
+		TOTAL_WAVES,
 		level,
 		kills,
 		words_completed,
@@ -1172,7 +1173,10 @@ func _update_wave_ui() -> void:
 		return
 
 	if run_complete:
-		wave_label.text = "WAVE 13 / 13   COMPLETE"
+		wave_label.text = "WAVE %d / %d   COMPLETE" % [
+			TOTAL_WAVES,
+			TOTAL_WAVES
+		]
 	elif wave_intermission:
 		wave_label.text = "WAVE %d / %d   CLEARED" % [current_wave, TOTAL_WAVES]
 	elif wave_spawning:
