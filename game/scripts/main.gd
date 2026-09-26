@@ -89,7 +89,7 @@ var typed_characters := 0
 var level := 1
 var xp_total := 0
 var xp_in_level := 0
-var xp_required := 10
+var xp_required := 6
 var pending_level_ups := 0
 var level_up_open := false
 var upgrade_definitions: Array = []
@@ -961,7 +961,7 @@ func _update_xp_hud(delta: float) -> void:
 
 	xp_impact_flash.visible = xp_impact_time > 0.0
 	if xp_impact_flash.visible:
-		xp_impact_flash.modulate.a = clampf(xp_impact_time / 0.18, 0.0, 1.0)
+		xp_impact_flash.modulate.a = clampf(xp_impact_time / 0.24, 0.0, 1.0)
 
 
 func _load_upgrades() -> void:
