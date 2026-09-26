@@ -11,9 +11,10 @@ const SPAWN_RADIUS := 430.0
 const DANGER_RADIUS := 42.0
 const BASE_MAX_HP := 100.0
 
-const WORD_BUFFER := 6
-const VISIBLE_WORDS := 5
-const FIXED_WORD_X := 48.0
+const WORD_BUFFER := 24
+const TYPING_LINE_WIDTH := 614.0
+const TYPING_LINE_HEIGHT := 36.0
+const TYPING_LEFT_X := 48.0
 
 const TOTAL_WAVES := 8
 # Waves are defined by enemy count, not a timer. Early waves are small and
@@ -35,10 +36,14 @@ var combat = CombatSystemScript.new()
 # Typing state ----------------------------------------------------------------
 var word_pool: Array[String] = []
 var word_queue: Array[String] = []
+var active_word_index := 0
 var typed_index := 0
+var typing_line_offset_y := 0.0
 
-var caret_target_x := FIXED_WORD_X
-var caret_visual_x := FIXED_WORD_X
+var caret_target_x := TYPING_LEFT_X
+var caret_target_y := 4.0
+var caret_visual_x := TYPING_LEFT_X
+var caret_visual_y := 4.0
 var caret_initialized := false
 var caret_idle_time := 0.0
 
@@ -73,6 +78,8 @@ var wave_spawned_count := 0
 var wave_resolved_count := 0
 var wave_spawning := true
 var wave_intermission := false
+var wave_continue_waiting := false
+var wave_continue_typed := ""
 
 var correct_keys := 0
 var incorrect_keys := 0
@@ -92,6 +99,7 @@ var upgrade_candidate_index := -1
 var upgrade_typed := ""
 var upgrade_error_time := 0.0
 var xp_hud_pulse := 0.0
+var xp_impact_time := 0.0
 
 var reaction_counts := {
 	"shatter": 0,
@@ -104,9 +112,10 @@ var reaction_counts := {
 @onready var typing_caret: ColorRect = $HUD/TypingViewport/TypingCaret
 @onready var stats_label: Label = $HUD/Stats
 
-@onready var xp_panel: ColorRect = $HUD/XPPanel
-@onready var xp_bar_background: ColorRect = $HUD/XPPanel/XPBarBackground
+@onready var xp_panel: Control = $HUD/XPPanel
+@onready var xp_bar_background: Control = $HUD/XPPanel/XPBarBackground
 @onready var xp_bar_fill: ColorRect = $HUD/XPPanel/XPBarBackground/XPBarFill
+@onready var xp_impact_flash: ColorRect = $HUD/XPPanel/XPBarBackground/XPImpactFlash
 @onready var xp_count_label: Label = $HUD/XPPanel/XPCount
 @onready var level_label: Label = $HUD/XPPanel/LevelLabel
 @onready var wave_label: Label = $HUD/WaveLabel
@@ -147,6 +156,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_typing_line_motion(delta)
 	_update_typing_caret(delta)
 	_update_xp_hud(delta)
 	upgrade_error_time = maxf(upgrade_error_time - delta, 0.0)
@@ -205,6 +215,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if run_over or run_complete:
 		if event.keycode == KEY_R:
 			get_tree().reload_current_scene()
+		return
+
+	if wave_continue_waiting:
+		if event.unicode != 0:
+			var continue_key := char(event.unicode).to_lower()
+			if continue_key.length() == 1 and continue_key >= "a" and continue_key <= "z":
+				_handle_wave_continue_typing(continue_key)
 		return
 
 	if wave_intermission and not level_up_open:
@@ -280,42 +297,9 @@ func _ensure_word_buffer() -> void:
 
 
 func _get_current_word() -> String:
-	if word_queue.is_empty():
+	if active_word_index < 0 or active_word_index >= word_queue.size():
 		return ""
-	return word_queue[0]
-
-
-func _complete_word(completed_word: String) -> void:
-	words_completed += 1
-	typed_index = 0
-	word_queue.pop_front()
-	_ensure_word_buffer()
-
-	# The reading anchor never moves. The next word was already visible and
-	# simply becomes the active word at the exact same left edge.
-	_update_typing_ui()
-	caret_visual_x = FIXED_WORD_X
-	caret_target_x = FIXED_WORD_X
-
-	_emit_combat_trigger("word_complete", {
-		"word": completed_word,
-		"word_length": completed_word.length(),
-		"streak": streak
-	})
-
-
-func _update_typing_ui() -> void:
-	if word_queue.is_empty():
-		return
-
-	var pieces: Array[String] = []
-	pieces.append("[color=#ffffff]" + word_queue[0] + "[/color]")
-
-	for i in range(1, mini(VISIBLE_WORDS, word_queue.size())):
-		pieces.append("[color=#697180]" + word_queue[i] + "[/color]")
-
-	typing_panel.text = " ".join(pieces)
-	typing_panel.position.x = FIXED_WORD_X
+	return word_queue[active_word_index]
 
 
 func _measure_text_width(value: String) -> float:
@@ -332,6 +316,135 @@ func _measure_text_width(value: String) -> float:
 	).x
 
 
+func _build_typing_lines() -> Array[Dictionary]:
+	var lines: Array[Dictionary] = []
+	var start_index := 0
+	var line_width := 0.0
+	var space_width := _measure_text_width(" ")
+
+	for i in range(word_queue.size()):
+		var word_width := _measure_text_width(word_queue[i])
+		var added_width := word_width
+		if i > start_index:
+			added_width += space_width
+
+		if line_width > 0.0 and line_width + added_width > TYPING_LINE_WIDTH:
+			lines.append({
+				"start": start_index,
+				"end": i,
+				"width": line_width
+			})
+			start_index = i
+			line_width = word_width
+		else:
+			line_width += added_width
+
+		if lines.size() >= 2:
+			break
+
+	if lines.size() < 2 and start_index < word_queue.size():
+		lines.append({
+			"start": start_index,
+			"end": word_queue.size(),
+			"width": line_width
+		})
+
+	return lines
+
+
+func _complete_word(completed_word: String) -> void:
+	words_completed += 1
+	typed_index = 0
+	active_word_index += 1
+	_ensure_word_buffer()
+
+	# Completed words remain in place and fade. Only after an entire line is
+	# finished do we move the next line upward, matching Monkeytype's rhythm.
+	var lines := _build_typing_lines()
+	if lines.size() >= 2:
+		var second_line_start := int(lines[1]["start"])
+		if active_word_index >= second_line_start:
+			var remove_count := second_line_start
+			for i in range(remove_count):
+				word_queue.pop_front()
+			active_word_index -= remove_count
+			_ensure_word_buffer()
+			typing_line_offset_y = TYPING_LINE_HEIGHT
+
+	_update_typing_ui()
+
+	_emit_combat_trigger("word_complete", {
+		"word": completed_word,
+		"word_length": completed_word.length(),
+		"streak": streak
+	})
+
+
+func _update_typing_ui() -> void:
+	if word_queue.is_empty():
+		return
+
+	var lines := _build_typing_lines()
+	var rendered_lines: Array[String] = []
+
+	for line_index in range(mini(2, lines.size())):
+		var line: Dictionary = lines[line_index]
+		var pieces: Array[String] = []
+
+		for i in range(int(line["start"]), int(line["end"])):
+			if i < active_word_index:
+				pieces.append("[color=#454c58]" + word_queue[i] + "[/color]")
+			elif i == active_word_index:
+				pieces.append("[color=#ffffff]" + word_queue[i] + "[/color]")
+			else:
+				pieces.append("[color=#697180]" + word_queue[i] + "[/color]")
+
+		rendered_lines.append(" ".join(pieces))
+
+	typing_panel.text = "\n".join(rendered_lines)
+	typing_panel.position.x = TYPING_LEFT_X
+	typing_panel.position.y = typing_line_offset_y
+
+
+func _update_typing_line_motion(delta: float) -> void:
+	if typing_line_offset_y <= 0.01:
+		typing_line_offset_y = 0.0
+		typing_panel.position.y = 0.0
+		return
+
+	var follow := 1.0 - exp(-22.0 * delta)
+	typing_line_offset_y = lerpf(typing_line_offset_y, 0.0, follow)
+	typing_panel.position.y = typing_line_offset_y
+
+
+func _get_active_word_line_data() -> Dictionary:
+	var lines := _build_typing_lines()
+
+	for line_index in range(lines.size()):
+		var line: Dictionary = lines[line_index]
+		var start := int(line["start"])
+		var end := int(line["end"])
+
+		if active_word_index >= start and active_word_index < end:
+			var prefix_words: Array[String] = []
+			for i in range(start, active_word_index):
+				prefix_words.append(word_queue[i])
+
+			var prefix := ""
+			if not prefix_words.is_empty():
+				prefix = " ".join(prefix_words) + " "
+
+			return {
+				"line": line_index,
+				"prefix_width": _measure_text_width(prefix)
+			}
+
+	return {
+		"line": 0,
+		"prefix_width": 0.0
+	}
+
+
 func _update_typing_caret(delta: float) -> void:
 	if word_queue.is_empty():
 		return
@@ -341,15 +454,20 @@ func _update_typing_caret(delta: float) -> void:
 	var current := _get_current_word()
 	var completed := current.substr(0, typed_index)
 	var completed_width := _measure_text_width(completed)
-	caret_target_x = FIXED_WORD_X + completed_width - typing_caret.size.x * 0.5
+	var line_data := _get_active_word_line_data()
+
+	caret_target_x = TYPING_LEFT_X + float(line_data["prefix_width"]) + completed_width - typing_caret.size.x * 0.5
+	caret_target_y = 4.0 + float(line_data["line"]) * TYPING_LINE_HEIGHT + typing_line_offset_y
 
 	if not caret_initialized:
 		caret_visual_x = caret_target_x
+		caret_visual_y = caret_target_y
 		caret_initialized = true
 
 	var follow := 1.0 - exp(-38.0 * delta)
 	caret_visual_x = lerpf(caret_visual_x, caret_target_x, follow)
-	typing_caret.position.x = caret_visual_x
+	caret_visual_y = lerpf(caret_visual_y, caret_target_y, follow)
+	typing_caret.position = Vector2(caret_visual_x, caret_visual_y)
 
 	if error_flash > 0.0:
 		typing_caret.color = Color(1.0, 0.36, 0.42, 1.0)
@@ -830,12 +948,17 @@ func _update_xp_ui() -> void:
 
 func _update_xp_hud(delta: float) -> void:
 	xp_hud_pulse = maxf(xp_hud_pulse - delta, 0.0)
+	xp_impact_time = maxf(xp_impact_time - delta, 0.0)
+
 	var pulse := clampf(xp_hud_pulse / 0.18, 0.0, 1.0)
-	xp_panel.color = Color(0.055, 0.064, 0.080, 0.94)
 	xp_bar_fill.color = Color(0.42, 0.95, 0.72, 1.0).lerp(
 		Color(0.82, 1.0, 0.91, 1.0),
 		pulse * 0.75
 	)
+
+	xp_impact_flash.visible = xp_impact_time > 0.0
+	if xp_impact_flash.visible:
+		xp_impact_flash.modulate.a = clampf(xp_impact_time / 0.18, 0.0, 1.0)
 
 
 func _load_upgrades() -> void:
@@ -1062,7 +1185,7 @@ func _choose_upgrade(index: int) -> void:
 	if pending_level_ups > 0:
 		call_deferred("_open_level_up")
 	else:
-		_start_next_wave()
+		_open_wave_continue()
 
 
 func _apply_upgrade(upgrade: Dictionary) -> void:
@@ -1163,6 +1286,41 @@ func _finish_wave() -> void:
 	if pending_level_ups > 0:
 		call_deferred("_open_level_up")
 	else:
+		_open_wave_continue()
+
+
+func _open_wave_continue() -> void:
+	level_up_open = false
+	wave_continue_waiting = true
+	wave_continue_typed = ""
+	upgrade_overlay.visible = true
+	upgrade_title.text = "WAVE %d CLEARED" % current_wave
+	upgrade_subtitle.text = "Type READY to begin Wave %d" % (current_wave + 1)
+
+	for card in upgrade_card_nodes:
+		card.visible = false
+
+
+func _handle_wave_continue_typing(typed: String) -> void:
+	const COMMAND := "ready"
+	var expected_index := wave_continue_typed.length()
+
+	if expected_index < COMMAND.length() and typed == COMMAND.substr(expected_index, 1):
+		wave_continue_typed += typed
+	else:
+		wave_continue_typed = typed if typed == "r" else ""
+
+	var shown := wave_continue_typed.to_upper()
+	var remaining := COMMAND.substr(wave_continue_typed.length()).to_upper()
+	upgrade_subtitle.text = "Type %s%s to begin Wave %d" % [
+		shown,
+		remaining,
+		current_wave + 1
+	]
+
+	if wave_continue_typed.length() >= COMMAND.length():
+		wave_continue_waiting = false
+		wave_continue_typed = ""
 		_start_next_wave()
 
 
@@ -1171,6 +1329,7 @@ func _start_next_wave() -> void:
 		return
 
 	level_up_open = false
+	wave_continue_waiting = false
 	upgrade_overlay.visible = false
 	wave_intermission = false
 	current_wave += 1
@@ -1274,32 +1433,42 @@ func _spawn_xp_particles(position: Vector2, amount: int) -> void:
 	var bar_left := xp_bar_background.global_position.x
 	var bar_width := xp_bar_background.size.x
 	var target_x := bar_left + normalized_x * bar_width
-	var target_y := xp_bar_background.global_position.y + xp_bar_background.size.y * 0.5
+	# Land at the lower edge of the HUD bar so the world-space particles remain
+	# visible right up to impact instead of disappearing underneath the HUD.
+	var target_y := xp_bar_background.global_position.y + xp_bar_background.size.y + 2.0
 
-	# XP should read as a burst of small particles, not a collectible orb.
-	_spawn_impact_particles(
-		position,
-		Color(0.42, 0.95, 0.72),
-		10
-	)
+	# Strong source burst: this is the main XP readability cue.
+	for i in range(12):
+		var angle := rng.randf_range(0.0, TAU)
+		particles.append({
+			"position": position,
+			"velocity": Vector2.RIGHT.rotated(angle) * rng.randf_range(45.0, 115.0),
+			"life": rng.randf_range(0.24, 0.38),
+			"max_life": 0.38,
+			"color": Color(0.50, 1.0, 0.76),
+			"size": rng.randf_range(2.0, 3.4),
+			"kind": "impact"
+		})
 
+	# Small tracer particles carry the motion to the bar without reading as an
+	# orb or pickup object.
 	for i in range(5):
-		var launch_angle := rng.randf_range(-2.7, -0.45)
+		var launch_angle := rng.randf_range(-2.65, -0.50)
 		particles.append({
 			"position": position + Vector2(
-				rng.randf_range(-3.0, 3.0),
-				rng.randf_range(-3.0, 3.0)
+				rng.randf_range(-4.0, 4.0),
+				rng.randf_range(-4.0, 4.0)
 			),
-			"velocity": Vector2.RIGHT.rotated(launch_angle) * rng.randf_range(55.0, 105.0),
+			"velocity": Vector2.RIGHT.rotated(launch_angle) * rng.randf_range(70.0, 120.0),
 			"target": Vector2(
-				target_x + rng.randf_range(-7.0, 7.0),
+				target_x + rng.randf_range(-6.0, 6.0),
 				target_y + rng.randf_range(-2.0, 2.0)
 			),
-			"homing_delay": 0.08 + float(i) * 0.035,
-			"life": 1.8,
-			"max_life": 1.8,
-			"color": Color(0.42, 0.95, 0.72),
-			"size": rng.randf_range(2.2, 3.0),
+			"homing_delay": 0.10 + float(i) * 0.035,
+			"life": 2.0,
+			"max_life": 2.0,
+			"color": Color(0.50, 1.0, 0.76),
+			"size": rng.randf_range(2.0, 2.7),
 			"kind": "xp",
 			"amount": amount if i == 0 else 0
 		})
@@ -1320,8 +1489,8 @@ func _update_particles(delta: float) -> void:
 				var pos: Vector2 = particle["position"]
 				var target: Vector2 = particle["target"]
 				var to_target := target - pos
-				var desired := to_target.normalized() * 640.0
-				var follow := 1.0 - exp(-5.2 * delta)
+				var desired := to_target.normalized() * 520.0
+				var follow := 1.0 - exp(-4.8 * delta)
 				particle["velocity"] = Vector2(
 					particle["velocity"]
 				).lerp(desired, follow)
@@ -1331,17 +1500,15 @@ func _update_particles(delta: float) -> void:
 					if amount > 0:
 						_grant_xp(amount)
 						xp_hud_pulse = 0.18
-						_spawn_impact_particles(
-							target,
-							Color(0.42, 0.95, 0.72),
-							9
-						)
-					else:
-						_spawn_impact_particles(
-							target,
-							Color(0.42, 0.95, 0.72),
-							2
-						)
+						_trigger_xp_bar_impact(target.x)
+
+					# Tiny world-space landing burst remains visible just under
+					# the HUD while the HUD marker flashes at the impact point.
+					_spawn_impact_particles(
+						target,
+						Color(0.50, 1.0, 0.76),
+						4 if amount > 0 else 1
+					)
 					particles.remove_at(i)
 					continue
 		else:
@@ -1361,9 +1528,22 @@ func _update_particles(delta: float) -> void:
 				if amount > 0:
 					_grant_xp(amount)
 					xp_hud_pulse = 0.18
+					_trigger_xp_bar_impact(float(particle["target"].x))
 			particles.remove_at(i)
 		else:
 			particles[i] = particle
+
+
+func _trigger_xp_bar_impact(global_x: float) -> void:
+	var local_x := global_x - xp_bar_background.global_position.x
+	xp_impact_flash.position.x = clampf(
+		local_x - xp_impact_flash.size.x * 0.5,
+		0.0,
+		xp_bar_background.size.x - xp_impact_flash.size.x
+	)
+	xp_impact_time = 0.18
+	xp_impact_flash.visible = true
+	xp_impact_flash.modulate.a = 1.0
 
 
 func _spawn_damage_number(
