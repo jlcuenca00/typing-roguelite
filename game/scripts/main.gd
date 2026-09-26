@@ -122,7 +122,7 @@ var reaction_counts := {
 
 @onready var upgrade_overlay: ColorRect = $HUD/UpgradeOverlay
 @onready var upgrade_title: Label = $HUD/UpgradeOverlay/Title
-@onready var upgrade_subtitle: Label = $HUD/UpgradeOverlay/Subtitle
+@onready var upgrade_subtitle: RichTextLabel = $HUD/UpgradeOverlay/Subtitle
 @onready var upgrade_card_nodes: Array[ColorRect] = [
 	$HUD/UpgradeOverlay/Card1,
 	$HUD/UpgradeOverlay/Card2,
@@ -924,9 +924,11 @@ func _grant_xp(amount: int) -> void:
 
 
 func _xp_required_for_level(current_level: int) -> int:
-	# Development curve: much slower than the old every-5-kills cadence.
-	# Final pacing will be tuned around the 20-minute run structure.
-	return 10 + (current_level - 1) * 5
+	# Survivor-style progression benefits from a nonlinear requirement curve:
+	# early levels arrive quickly, while later levels increasingly resist the
+	# larger enemy counts. This is deliberately scaled to our 1-XP normal enemy.
+	var n := float(maxi(current_level - 1, 0))
+	return int(round(6.0 + 2.25 * n + 0.65 * n * n))
 
 
 func _update_xp_ui() -> void:
@@ -994,7 +996,7 @@ func _open_level_up() -> void:
 	upgrade_typed = ""
 	upgrade_overlay.visible = true
 	upgrade_title.text = "WAVE %d COMPLETE" % current_wave
-	upgrade_subtitle.text = "%d upgrade%s banked — type one command word" % [
+	upgrade_subtitle.text = "[center]%d upgrade%s banked — type one command word[/center]" % [
 		pending_level_ups + 1,
 		"" if pending_level_ups == 0 else "s"
 	]
@@ -1281,6 +1283,13 @@ func _finish_wave() -> void:
 
 	wave_intermission = true
 
+	# Wave 1 is our onboarding beat: clearing it always unlocks the first
+	# upgrade decision, even if a few enemies reached the player.
+	if current_wave == 1 and level == 1:
+		var first_level_top_up := maxi(xp_required - xp_in_level, 0)
+		if first_level_top_up > 0:
+			_grant_xp(first_level_top_up)
+
 	if current_wave >= TOTAL_WAVES:
 		_complete_run()
 		return
@@ -1297,7 +1306,7 @@ func _open_wave_continue() -> void:
 	wave_continue_typed = ""
 	upgrade_overlay.visible = true
 	upgrade_title.text = "WAVE %d CLEARED" % current_wave
-	upgrade_subtitle.text = "Type READY to begin Wave %d" % (current_wave + 1)
+	_refresh_wave_continue_indicator()
 
 	for card in upgrade_card_nodes:
 		card.visible = false
@@ -1312,18 +1321,28 @@ func _handle_wave_continue_typing(typed: String) -> void:
 	else:
 		wave_continue_typed = typed if typed == "r" else ""
 
-	var shown := wave_continue_typed.to_upper()
-	var remaining := COMMAND.substr(wave_continue_typed.length()).to_upper()
-	upgrade_subtitle.text = "Type %s%s to begin Wave %d" % [
-		shown,
-		remaining,
-		current_wave + 1
-	]
+	_refresh_wave_continue_indicator()
 
 	if wave_continue_typed.length() >= COMMAND.length():
 		wave_continue_waiting = false
 		wave_continue_typed = ""
 		_start_next_wave()
+
+
+func _refresh_wave_continue_indicator() -> void:
+	const COMMAND := "ready"
+	var shown := wave_continue_typed.to_upper()
+	var remaining := COMMAND.substr(wave_continue_typed.length()).to_upper()
+	var command_markup := "[color=#65e6a6][b]%s[/b][/color][color=#67717f]%s[/color]" % [
+		shown,
+		remaining
+	]
+
+	upgrade_subtitle.text = "[center][color=#8b94a2]NEXT: WAVE %d  •  %d ENEMIES[/color]\n\n[font_size=30]%s[/font_size]\n[color=#68717d]TYPE TO START[/color][/center]" % [
+		current_wave + 1,
+		_wave_enemy_count(current_wave + 1),
+		command_markup
+	]
 
 
 func _start_next_wave() -> void:
@@ -1429,48 +1448,69 @@ func _spawn_death_particles(position: Vector2) -> void:
 	)
 
 
+func _random_xp_color() -> Color:
+	var roll := rng.randf()
+	if roll < 0.34:
+		return Color(0.44, 1.0, 0.70)
+	if roll < 0.67:
+		return Color(0.70, 1.0, 0.55)
+	return Color(0.90, 1.0, 0.72)
+
+
 func _spawn_xp_particles(position: Vector2, amount: int) -> void:
 	var screen_width := get_viewport_rect().size.x
 	var normalized_x := clampf(position.x / screen_width, 0.0, 1.0)
 	var bar_left := xp_bar_background.global_position.x
 	var bar_width := xp_bar_background.size.x
 	var target_x := bar_left + normalized_x * bar_width
-	# Land at the lower edge of the HUD bar so the world-space particles remain
-	# visible right up to impact instead of disappearing underneath the HUD.
 	var target_y := xp_bar_background.global_position.y + xp_bar_background.size.y + 2.0
 
-	# Strong source burst: this is the main XP readability cue.
-	for i in range(12):
+	# Reference feel: messy, varied death burst first; then several tiny motes
+	# peel away toward the XP bar at slightly different times and curves.
+	var burst_count := rng.randi_range(12, 20)
+	for i in range(burst_count):
 		var angle := rng.randf_range(0.0, TAU)
+		var speed := rng.randf_range(35.0, 185.0)
+		var life := rng.randf_range(0.18, 0.56)
 		particles.append({
-			"position": position,
-			"velocity": Vector2.RIGHT.rotated(angle) * rng.randf_range(45.0, 115.0),
-			"life": rng.randf_range(0.24, 0.38),
-			"max_life": 0.38,
-			"color": Color(0.50, 1.0, 0.76),
-			"size": rng.randf_range(2.0, 3.4),
+			"position": position + Vector2(
+				rng.randf_range(-3.0, 3.0),
+				rng.randf_range(-3.0, 3.0)
+			),
+			"velocity": Vector2.RIGHT.rotated(angle) * speed,
+			"life": life,
+			"max_life": life,
+			"color": _random_xp_color(),
+			"size": rng.randf_range(1.0, 4.2),
+			"shape": "square" if rng.randf() < 0.62 else "dot",
 			"kind": "impact"
 		})
 
-	# Small tracer particles carry the motion to the bar without reading as an
-	# orb or pickup object.
-	for i in range(5):
-		var launch_angle := rng.randf_range(-2.65, -0.50)
+	var tracer_count := rng.randi_range(6, 10)
+	for i in range(tracer_count):
+		var launch_angle := rng.randf_range(-2.9, 0.25)
+		var life := rng.randf_range(1.65, 2.15)
 		particles.append({
 			"position": position + Vector2(
-				rng.randf_range(-4.0, 4.0),
-				rng.randf_range(-4.0, 4.0)
+				rng.randf_range(-5.0, 5.0),
+				rng.randf_range(-5.0, 5.0)
 			),
-			"velocity": Vector2.RIGHT.rotated(launch_angle) * rng.randf_range(70.0, 120.0),
+			"velocity": Vector2.RIGHT.rotated(launch_angle) * rng.randf_range(55.0, 150.0),
 			"target": Vector2(
-				target_x + rng.randf_range(-6.0, 6.0),
-				target_y + rng.randf_range(-2.0, 2.0)
+				target_x + rng.randf_range(-8.0, 8.0),
+				target_y + rng.randf_range(-2.5, 2.5)
 			),
-			"homing_delay": 0.10 + float(i) * 0.035,
-			"life": 2.0,
-			"max_life": 2.0,
-			"color": Color(0.50, 1.0, 0.76),
-			"size": rng.randf_range(2.0, 2.7),
+			"homing_delay": rng.randf_range(0.07, 0.28),
+			"homing_speed": rng.randf_range(430.0, 610.0),
+			"homing_gain": rng.randf_range(3.8, 6.0),
+			"wander_phase": rng.randf_range(0.0, TAU),
+			"wander_speed": rng.randf_range(7.0, 14.0),
+			"wander_strength": rng.randf_range(12.0, 42.0),
+			"life": life,
+			"max_life": life,
+			"color": _random_xp_color(),
+			"size": rng.randf_range(1.2, 3.1),
+			"shape": "square" if rng.randf() < 0.72 else "dot",
 			"kind": "xp",
 			"amount": amount if i == 0 else 0
 		})
@@ -1487,12 +1527,28 @@ func _update_particles(delta: float) -> void:
 			) - delta
 			particle["homing_delay"] = delay
 
+			var phase := float(
+				particle.get("wander_phase", 0.0)
+			) + float(
+				particle.get("wander_speed", 0.0)
+			) * delta
+			particle["wander_phase"] = phase
+
 			if delay <= 0.0:
 				var pos: Vector2 = particle["position"]
 				var target: Vector2 = particle["target"]
 				var to_target := target - pos
-				var desired := to_target.normalized() * 520.0
-				var follow := 1.0 - exp(-4.8 * delta)
+				var direction := to_target.normalized()
+				var tangent := Vector2(-direction.y, direction.x)
+				var wander := tangent * sin(phase) * float(
+					particle.get("wander_strength", 0.0)
+				)
+				var desired := direction * float(
+					particle.get("homing_speed", 520.0)
+				) + wander
+				var follow := 1.0 - exp(
+					-float(particle.get("homing_gain", 4.8)) * delta
+				)
 				particle["velocity"] = Vector2(
 					particle["velocity"]
 				).lerp(desired, follow)
@@ -1504,13 +1560,7 @@ func _update_particles(delta: float) -> void:
 						xp_hud_pulse = 0.18
 						_trigger_xp_bar_impact(target.x)
 
-					# Tiny world-space landing burst remains visible just under
-					# the HUD while the HUD marker flashes at the impact point.
-					_spawn_impact_particles(
-						target,
-						Color(0.50, 1.0, 0.76),
-						4 if amount > 0 else 1
-					)
+					_spawn_xp_landing_particles(target, amount > 0)
 					particles.remove_at(i)
 					continue
 		else:
@@ -1530,10 +1580,33 @@ func _update_particles(delta: float) -> void:
 				if amount > 0:
 					_grant_xp(amount)
 					xp_hud_pulse = 0.18
-					_trigger_xp_bar_impact(float(particle["target"].x))
+					var target: Vector2 = particle["target"]
+					_trigger_xp_bar_impact(target.x)
+					_spawn_xp_landing_particles(target, true)
 			particles.remove_at(i)
 		else:
 			particles[i] = particle
+
+
+func _spawn_xp_landing_particles(position: Vector2, strong: bool) -> void:
+	var count := rng.randi_range(7, 11) if strong else rng.randi_range(2, 4)
+
+	for i in range(count):
+		var angle := rng.randf_range(0.15, PI - 0.15)
+		var life := rng.randf_range(0.16, 0.34)
+		particles.append({
+			"position": position + Vector2(
+				rng.randf_range(-2.0, 2.0),
+				rng.randf_range(-1.0, 2.0)
+			),
+			"velocity": Vector2.RIGHT.rotated(angle) * rng.randf_range(35.0, 120.0),
+			"life": life,
+			"max_life": life,
+			"color": _random_xp_color(),
+			"size": rng.randf_range(1.0, 3.2),
+			"shape": "square" if rng.randf() < 0.70 else "dot",
+			"kind": "impact"
+		})
 
 
 func _trigger_xp_bar_impact(global_x: float) -> void:
@@ -1543,7 +1616,7 @@ func _trigger_xp_bar_impact(global_x: float) -> void:
 		0.0,
 		xp_bar_background.size.x - xp_impact_flash.size.x
 	)
-	xp_impact_time = 0.18
+	xp_impact_time = 0.24
 	xp_impact_flash.visible = true
 	xp_impact_flash.modulate.a = 1.0
 
@@ -1778,11 +1851,22 @@ func _draw() -> void:
 		else:
 			color.a = life_ratio
 
-		draw_circle(
-			Vector2(particle["position"]),
-			float(particle["size"]),
-			color
-		)
+		var particle_pos := Vector2(particle["position"])
+		var particle_size := float(particle["size"])
+		if String(particle.get("shape", "dot")) == "square":
+			draw_rect(
+				Rect2(
+					particle_pos - Vector2.ONE * particle_size * 0.5,
+					Vector2.ONE * particle_size
+				),
+				color
+			)
+		else:
+			draw_circle(
+				particle_pos,
+				particle_size,
+				color
+			)
 
 	var default_font := ThemeDB.fallback_font
 
