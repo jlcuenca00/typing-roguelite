@@ -71,3 +71,20 @@ Not:
 > I was mathematically prevented from winning.
 
 That distinction is the balancing target.
+
+
+## Wave XP Economy
+
+Run XP should reward performance without directly rewarding raw damage numbers.
+
+Each wave has a potential XP budget. That budget is distributed randomly across the enemies in that wave. Killed enemies pay their assigned XP; enemies that reach the player do not. This means a stronger build naturally converts more of the wave's potential XP into actual level-ups.
+
+The potential XP budget scales faster in later waves while level costs also rise nonlinearly. The intended rhythm is:
+
+- early waves: usually one level-up
+- mid waves: one or occasionally two
+- late waves: two, with three possible on strong/high-clear waves
+
+Wave 1 is a deliberate onboarding exception and always produces the first level-up.
+
+This keeps level-up count responsive to kill performance and future enemy composition (normal enemies, priority enemies, elites, bosses) without making damage dealt itself an XP currency.
