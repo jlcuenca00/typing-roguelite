@@ -15,6 +15,9 @@ const WORD_BUFFER := 6
 const VISIBLE_WORDS := 5
 const FIXED_WORD_X := 48.0
 
+const TOTAL_WAVES := 13
+const WAVE_DURATION := 35.0
+
 var rng := RandomNumberGenerator.new()
 var combat = CombatSystemScript.new()
 
@@ -52,6 +55,12 @@ var best_streak := 0
 var max_hp := BASE_MAX_HP
 var hp := BASE_MAX_HP
 var run_over := false
+var run_complete := false
+
+var current_wave := 1
+var wave_time_remaining := WAVE_DURATION
+var wave_spawning := true
+var wave_intermission := false
 
 var correct_keys := 0
 var incorrect_keys := 0
@@ -84,10 +93,11 @@ var reaction_counts := {
 @onready var stats_label: Label = $HUD/Stats
 
 @onready var xp_panel: ColorRect = $HUD/XPPanel
-@onready var xp_bar_background: ColorRect = $HUD/XPPanel/BarFrame/XPBarBackground
-@onready var xp_bar_fill: ColorRect = $HUD/XPPanel/BarFrame/XPBarBackground/XPBarFill
+@onready var xp_bar_background: ColorRect = $HUD/XPPanel/XPBarBackground
+@onready var xp_bar_fill: ColorRect = $HUD/XPPanel/XPBarBackground/XPBarFill
 @onready var xp_count_label: Label = $HUD/XPPanel/XPCount
-@onready var level_label: Label = $HUD/XPPanel/LevelBadge/LevelLabel
+@onready var level_label: Label = $HUD/XPPanel/LevelLabel
+@onready var wave_label: Label = $HUD/WaveLabel
 
 @onready var upgrade_overlay: ColorRect = $HUD/UpgradeOverlay
 @onready var upgrade_title: Label = $HUD/UpgradeOverlay/Title
@@ -104,6 +114,7 @@ var reaction_counts := {
 ]
 
 @onready var death_overlay: ColorRect = $HUD/DeathOverlay
+@onready var run_end_title: Label = $HUD/DeathOverlay/GameOver
 @onready var death_summary: Label = $HUD/DeathOverlay/Summary
 
 
@@ -118,6 +129,7 @@ func _ready() -> void:
 
 	_update_typing_ui()
 	_update_xp_ui()
+	_update_wave_ui()
 	_update_stats()
 	queue_redraw()
 
@@ -141,11 +153,16 @@ func _process(delta: float) -> void:
 	player_recoil = maxf(player_recoil - delta, 0.0)
 	shake_time = maxf(shake_time - delta, 0.0)
 
-	spawn_timer -= delta
-	if spawn_timer <= 0.0:
-		_spawn_enemy()
-		spawn_timer = spawn_interval
-		spawn_interval = maxf(0.28, 0.95 - elapsed * 0.004)
+	if wave_spawning:
+		wave_time_remaining = maxf(wave_time_remaining - delta, 0.0)
+		spawn_timer -= delta
+
+		if spawn_timer <= 0.0:
+			_spawn_enemy()
+			spawn_timer = spawn_interval
+
+		if wave_time_remaining <= 0.0:
+			wave_spawning = false
 
 	_update_enemies(delta)
 	_update_bullets(delta)
@@ -153,6 +170,11 @@ func _process(delta: float) -> void:
 	_update_reaction_waves(delta)
 	_update_particles(delta)
 	_update_damage_numbers(delta)
+
+	if not wave_spawning and enemies.is_empty() and not _has_pending_xp_particles() and not wave_intermission:
+		_finish_wave()
+
+	_update_wave_ui()
 	_update_stats()
 	_update_canvas_shake()
 	queue_redraw()
@@ -162,7 +184,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if not event.pressed or event.echo:
 		return
 
-	if run_over:
+	if run_over or run_complete:
 		if event.keycode == KEY_R:
 			get_tree().reload_current_scene()
 		return
@@ -361,8 +383,9 @@ func _spawn_enemy() -> void:
 	var center := get_viewport_rect().size * 0.5
 	var angle := rng.randf_range(0.0, TAU)
 	var position := center + Vector2.RIGHT.rotated(angle) * SPAWN_RADIUS
-	var speed := rng.randf_range(38.0, 62.0) + minf(elapsed * 0.20, 26.0)
-	var hp_value := 44.0 + minf(elapsed * 0.18, 32.0)
+	var wave_scale := float(current_wave - 1)
+	var speed := rng.randf_range(38.0, 62.0) + wave_scale * 2.2 + minf(elapsed * 0.06, 12.0)
+	var hp_value := 44.0 + wave_scale * 4.5 + minf(elapsed * 0.05, 14.0)
 
 	enemies.append({
 		"position": position,
@@ -758,9 +781,6 @@ func _grant_xp(amount: int) -> void:
 
 	_update_xp_ui()
 
-	if pending_level_ups > 0 and not level_up_open:
-		call_deferred("_open_level_up")
-
 
 func _xp_required_for_level(current_level: int) -> int:
 	# Development curve: much slower than the old every-5-kills cadence.
@@ -787,10 +807,11 @@ func _update_xp_ui() -> void:
 
 func _update_xp_hud(delta: float) -> void:
 	xp_hud_pulse = maxf(xp_hud_pulse - delta, 0.0)
-	var pulse := clampf(xp_hud_pulse / 0.22, 0.0, 1.0)
-	xp_panel.color = Color(0.07, 0.085, 0.11, 0.98).lerp(
-		Color(0.16, 0.30, 0.25, 1.0),
-		pulse * 0.65
+	var pulse := clampf(xp_hud_pulse / 0.18, 0.0, 1.0)
+	xp_panel.color = Color(0.055, 0.064, 0.080, 0.94)
+	xp_bar_fill.color = Color(0.42, 0.95, 0.72, 1.0).lerp(
+		Color(0.82, 1.0, 0.91, 1.0),
+		pulse * 0.75
 	)
 
 
@@ -824,8 +845,11 @@ func _open_level_up() -> void:
 	upgrade_candidate_index = -1
 	upgrade_typed = ""
 	upgrade_overlay.visible = true
-	upgrade_title.text = "LEVEL %d" % level
-	upgrade_subtitle.text = "Type one command word to choose"
+	upgrade_title.text = "WAVE %d COMPLETE" % current_wave
+	upgrade_subtitle.text = "%d upgrade%s banked — type one command word" % [
+		pending_level_ups + 1,
+		"" if pending_level_ups == 0 else "s"
+	]
 	_refresh_upgrade_cards()
 
 
@@ -1014,6 +1038,8 @@ func _choose_upgrade(index: int) -> void:
 
 	if pending_level_ups > 0:
 		call_deferred("_open_level_up")
+	else:
+		_start_next_wave()
 
 
 func _apply_upgrade(upgrade: Dictionary) -> void:
@@ -1085,14 +1111,92 @@ func _apply_upgrade(upgrade: Dictionary) -> void:
 	_update_stats()
 
 
+func _has_pending_xp_particles() -> bool:
+	for particle in particles:
+		if String(particle.get("kind", "")) == "xp":
+			return true
+	return false
+
+
+func _finish_wave() -> void:
+	if wave_intermission or run_over or run_complete:
+		return
+
+	wave_intermission = true
+
+	if current_wave >= TOTAL_WAVES:
+		_complete_run()
+		return
+
+	if pending_level_ups > 0:
+		call_deferred("_open_level_up")
+	else:
+		_start_next_wave()
+
+
+func _start_next_wave() -> void:
+	if run_over or run_complete:
+		return
+
+	level_up_open = false
+	upgrade_overlay.visible = false
+	wave_intermission = false
+	current_wave += 1
+	wave_time_remaining = WAVE_DURATION
+	wave_spawning = true
+	spawn_timer = 0.35
+	spawn_interval = maxf(0.30, 0.95 - float(current_wave - 1) * 0.045)
+	_update_wave_ui()
+
+
+func _complete_run() -> void:
+	run_complete = true
+	wave_intermission = true
+	wave_spawning = false
+	run_end_title.text = "RUN COMPLETE"
+	death_overlay.visible = true
+	death_summary.text = "13 WAVES CLEARED   LEVEL %d   KILLS %d\nWORDS %d   BEST STREAK %d   WPM %d\n\nPress R to restart" % [
+		level,
+		kills,
+		words_completed,
+		best_streak,
+		_get_current_wpm()
+	]
+
+
+func _update_wave_ui() -> void:
+	if not is_instance_valid(wave_label):
+		return
+
+	if run_complete:
+		wave_label.text = "WAVE 13 / 13   COMPLETE"
+	elif wave_intermission:
+		wave_label.text = "WAVE %d / %d   CLEARED" % [current_wave, TOTAL_WAVES]
+	elif wave_spawning:
+		wave_label.text = "WAVE %d / %d   %02d" % [
+			current_wave,
+			TOTAL_WAVES,
+			int(ceil(wave_time_remaining))
+		]
+	else:
+		wave_label.text = "WAVE %d / %d   CLEAR THE REST" % [
+			current_wave,
+			TOTAL_WAVES
+		]
+
+
 func _end_run() -> void:
 	if run_over:
 		return
 
 	run_over = true
 	hp = 0.0
+	wave_spawning = false
+	run_end_title.text = "RUN OVER"
 	death_overlay.visible = true
-	death_summary.text = "LEVEL %d   KILLS %d   WORDS %d\nBEST STREAK %d   WPM %d\n\nPress R to restart" % [
+	death_summary.text = "WAVE %d / %d   LEVEL %d   KILLS %d\nWORDS %d   BEST STREAK %d   WPM %d\n\nPress R to restart" % [
+		current_wave,
+		TOTAL_WAVES,
 		level,
 		kills,
 		words_completed,
@@ -1138,33 +1242,32 @@ func _spawn_xp_particles(position: Vector2, amount: int) -> void:
 	var target_x := bar_left + normalized_x * bar_width
 	var target_y := xp_bar_background.global_position.y + xp_bar_background.size.y * 0.5
 
-	var launch_angle := rng.randf_range(-2.75, -0.40)
-	particles.append({
-		"position": position,
-		"previous_position": position,
-		"velocity": Vector2.RIGHT.rotated(launch_angle) * rng.randf_range(80.0, 145.0),
-		"target": Vector2(target_x, target_y),
-		"homing_delay": 0.20,
-		"life": 2.20,
-		"max_life": 2.20,
-		"color": Color(0.42, 0.95, 0.72),
-		"size": 5.5,
-		"kind": "xp",
-		"amount": amount
-	})
+	# XP should read as a burst of small particles, not a collectible orb.
+	_spawn_impact_particles(
+		position,
+		Color(0.42, 0.95, 0.72),
+		10
+	)
 
-	# A small launch sparkle makes the collection source obvious without
-	# competing with the main shard.
-	for i in range(3):
-		var spark_angle := rng.randf_range(0.0, TAU)
+	for i in range(5):
+		var launch_angle := rng.randf_range(-2.7, -0.45)
 		particles.append({
-			"position": position,
-			"velocity": Vector2.RIGHT.rotated(spark_angle) * rng.randf_range(25.0, 65.0),
-			"life": 0.32,
-			"max_life": 0.32,
+			"position": position + Vector2(
+				rng.randf_range(-3.0, 3.0),
+				rng.randf_range(-3.0, 3.0)
+			),
+			"velocity": Vector2.RIGHT.rotated(launch_angle) * rng.randf_range(55.0, 105.0),
+			"target": Vector2(
+				target_x + rng.randf_range(-7.0, 7.0),
+				target_y + rng.randf_range(-2.0, 2.0)
+			),
+			"homing_delay": 0.08 + float(i) * 0.035,
+			"life": 1.8,
+			"max_life": 1.8,
 			"color": Color(0.42, 0.95, 0.72),
-			"size": 2.0,
-			"kind": "impact"
+			"size": rng.randf_range(2.2, 3.0),
+			"kind": "xp",
+			"amount": amount if i == 0 else 0
 		})
 
 
@@ -1174,7 +1277,6 @@ func _update_particles(delta: float) -> void:
 		particle["life"] = float(particle["life"]) - delta
 
 		if particle["kind"] == "xp":
-			particle["previous_position"] = particle["position"]
 			var delay := float(
 				particle.get("homing_delay", 0.0)
 			) - delta
@@ -1184,20 +1286,28 @@ func _update_particles(delta: float) -> void:
 				var pos: Vector2 = particle["position"]
 				var target: Vector2 = particle["target"]
 				var to_target := target - pos
-				var desired := to_target.normalized() * 570.0
-				var follow := 1.0 - exp(-4.2 * delta)
+				var desired := to_target.normalized() * 640.0
+				var follow := 1.0 - exp(-5.2 * delta)
 				particle["velocity"] = Vector2(
 					particle["velocity"]
 				).lerp(desired, follow)
 
-				if to_target.length() < 16.0:
-					_grant_xp(int(particle.get("amount", 1)))
-					xp_hud_pulse = 0.22
-					_spawn_impact_particles(
-						target,
-						Color(0.42, 0.95, 0.72),
-						7
-					)
+				if to_target.length() < 12.0:
+					var amount := int(particle.get("amount", 0))
+					if amount > 0:
+						_grant_xp(amount)
+						xp_hud_pulse = 0.18
+						_spawn_impact_particles(
+							target,
+							Color(0.42, 0.95, 0.72),
+							9
+						)
+					else:
+						_spawn_impact_particles(
+							target,
+							Color(0.42, 0.95, 0.72),
+							2
+						)
 					particles.remove_at(i)
 					continue
 		else:
@@ -1212,10 +1322,11 @@ func _update_particles(delta: float) -> void:
 		) * delta
 
 		if float(particle["life"]) <= 0.0:
-			# XP should never be silently lost because its visual timer ran out.
 			if particle["kind"] == "xp":
-				_grant_xp(int(particle.get("amount", 1)))
-				xp_hud_pulse = 0.22
+				var amount := int(particle.get("amount", 0))
+				if amount > 0:
+					_grant_xp(amount)
+					xp_hud_pulse = 0.18
 			particles.remove_at(i)
 		else:
 			particles[i] = particle
@@ -1447,40 +1558,7 @@ func _draw() -> void:
 		# XP remains bright for most of its trip so the eye can track it from
 		# the kill location all the way to the top progression bar.
 		if particle["kind"] == "xp":
-			color.a = maxf(0.85, life_ratio)
-			var xp_pos := Vector2(particle["position"])
-			var previous := Vector2(
-				particle.get("previous_position", xp_pos)
-			)
-			var trail_color := color
-			trail_color.a = 0.32
-			var trail_direction := (xp_pos - previous).normalized()
-			if trail_direction.length_squared() > 0.0:
-				draw_line(
-					xp_pos - trail_direction * 24.0,
-					xp_pos,
-					trail_color,
-					4.0
-				)
-			var glow := color
-			glow.a = 0.20
-			draw_circle(
-				xp_pos,
-				float(particle["size"]) + 5.0,
-				glow
-			)
-			draw_circle(
-				xp_pos,
-				float(particle["size"]),
-				color
-			)
-			var core := Color(0.92, 1.0, 0.96, color.a)
-			draw_circle(
-				xp_pos,
-				2.0,
-				core
-			)
-			continue
+			color.a = maxf(0.72, life_ratio)
 		else:
 			color.a = life_ratio
 
