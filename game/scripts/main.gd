@@ -941,9 +941,10 @@ func _update_xp_ui() -> void:
 			1.0
 		)
 
-	xp_bar_fill.size.x = xp_bar_background.size.x * ratio
+	var fill_width := maxf(xp_bar_background.size.x - 2.0, 0.0)
+	xp_bar_fill.size.x = fill_width * ratio
 	level_label.text = "LV %d" % level
-	xp_count_label.text = "%d / %d XP" % [xp_in_level, xp_required]
+	xp_count_label.text = "%d/%d" % [xp_in_level, xp_required]
 
 
 func _update_xp_hud(delta: float) -> void:
@@ -985,6 +986,7 @@ func _open_level_up() -> void:
 	current_upgrade_choices = _roll_upgrade_choices(3)
 
 	if current_upgrade_choices.is_empty():
+		_open_wave_continue()
 		return
 
 	level_up_open = true
