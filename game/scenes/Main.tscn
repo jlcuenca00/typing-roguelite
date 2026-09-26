@@ -66,7 +66,7 @@ offset_right = 420.0
 offset_bottom = 22.0
 theme_override_font_sizes/font_size = 11
 theme_override_colors/font_color = Color(0.47, 0.51, 0.57, 1)
-text = "0/10"
+text = "0/6"
 horizontal_alignment = 2
 vertical_alignment = 1
 
