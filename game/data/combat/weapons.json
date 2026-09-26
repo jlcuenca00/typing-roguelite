@@ -2,7 +2,7 @@
   "smg": {
     "name": "SMG",
     "trigger": "correct_key",
-    "damage": 2.0,
+    "damage": 5.5,
     "projectile_count": 1,
     "projectile_speed": 760.0,
     "spread_radians": 0.0,
@@ -12,7 +12,7 @@
   "pistol": {
     "name": "Pistol",
     "trigger": "word_complete",
-    "damage": 10.0,
+    "damage": 15.0,
     "projectile_count": 1,
     "projectile_speed": 880.0,
     "spread_radians": 0.0,
@@ -22,7 +22,7 @@
   "shotgun": {
     "name": "Shotgun",
     "trigger": "word_complete",
-    "damage": 4.0,
+    "damage": 6.0,
     "projectile_count": 5,
     "projectile_speed": 690.0,
     "spread_radians": 0.28,
