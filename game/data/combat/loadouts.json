@@ -1,5 +1,9 @@
 {
-  "prototype": {
+  "starter": {
+    "weapons": ["smg"],
+    "effect_bindings": {}
+  },
+  "reaction_test": {
     "weapons": ["smg", "pistol", "shotgun"],
     "effect_bindings": {
       "smg": [
