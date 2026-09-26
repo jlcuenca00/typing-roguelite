@@ -7,6 +7,14 @@ script = ExtResource("1_main")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
+[node name="TypingBackdrop" type="ColorRect" parent="HUD"]
+offset_left = 190.0
+offset_top = 429.0
+offset_right = 1090.0
+offset_bottom = 470.0
+mouse_filter = 2
+color = Color(0.145, 0.165, 0.2, 0.78)
+
 [node name="TypingPanel" type="RichTextLabel" parent="HUD"]
 offset_left = 190.0
 offset_top = 424.0
@@ -20,6 +28,14 @@ theme_override_font_sizes/normal_font_size = 28
 theme_override_constants/outline_size = 4
 theme_override_colors/font_outline_color = Color(0.04, 0.045, 0.055, 0.9)
 text = "typing roguelite"
+
+[node name="TypingCaret" type="ColorRect" parent="HUD"]
+offset_left = 640.0
+offset_top = 428.0
+offset_right = 642.0
+offset_bottom = 462.0
+mouse_filter = 2
+color = Color(0.56, 0.94, 0.76, 1)
 
 [node name="Stats" type="Label" parent="HUD"]
 offset_left = 24.0
