@@ -7,82 +7,68 @@ script = ExtResource("1_main")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
-[node name="XPPanelShadow" type="ColorRect" parent="HUD"]
-offset_left = 354.0
-offset_top = 18.0
-offset_right = 926.0
-offset_bottom = 78.0
-mouse_filter = 2
-color = Color(0.01, 0.012, 0.018, 0.58)
-
 [node name="XPPanel" type="ColorRect" parent="HUD"]
-offset_left = 360.0
-offset_top = 12.0
-offset_right = 920.0
-offset_bottom = 72.0
-mouse_filter = 2
-color = Color(0.07, 0.085, 0.11, 0.98)
-
-[node name="LevelBadge" type="ColorRect" parent="HUD/XPPanel"]
-offset_left = 12.0
-offset_top = 10.0
-offset_right = 96.0
+offset_left = 425.0
+offset_top = 18.0
+offset_right = 855.0
 offset_bottom = 50.0
 mouse_filter = 2
-color = Color(0.11, 0.13, 0.17, 1)
+color = Color(0.055, 0.064, 0.08, 0.94)
 
-[node name="LevelLabel" type="Label" parent="HUD/XPPanel/LevelBadge"]
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 84.0
-offset_bottom = 40.0
-theme_override_font_sizes/font_size = 18
-theme_override_constants/outline_size = 2
-theme_override_colors/font_outline_color = Color(0.02, 0.025, 0.035, 0.9)
+[node name="LevelLabel" type="Label" parent="HUD/XPPanel"]
+offset_left = 10.0
+offset_top = 4.0
+offset_right = 58.0
+offset_bottom = 28.0
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.76, 0.81, 0.87, 1)
 text = "LV 1"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="BarFrame" type="ColorRect" parent="HUD/XPPanel"]
-offset_left = 112.0
-offset_top = 12.0
-offset_right = 546.0
-offset_bottom = 40.0
+[node name="XPBarBackground" type="ColorRect" parent="HUD/XPPanel"]
+offset_left = 64.0
+offset_top = 8.0
+offset_right = 418.0
+offset_bottom = 22.0
 mouse_filter = 2
-color = Color(0.25, 0.29, 0.36, 1)
+color = Color(0.12, 0.14, 0.17, 1)
 
-[node name="XPBarBackground" type="ColorRect" parent="HUD/XPPanel/BarFrame"]
-offset_left = 3.0
-offset_top = 3.0
-offset_right = 431.0
-offset_bottom = 25.0
-mouse_filter = 2
-color = Color(0.035, 0.043, 0.058, 1)
-
-[node name="XPBarFill" type="ColorRect" parent="HUD/XPPanel/BarFrame/XPBarBackground"]
+[node name="XPBarFill" type="ColorRect" parent="HUD/XPPanel/XPBarBackground"]
 offset_left = 0.0
 offset_top = 0.0
 offset_right = 0.0
-offset_bottom = 22.0
+offset_bottom = 14.0
 mouse_filter = 2
 color = Color(0.42, 0.95, 0.72, 1)
 
 [node name="XPCount" type="Label" parent="HUD/XPPanel"]
-offset_left = 112.0
-offset_top = 41.0
-offset_right = 546.0
-offset_bottom = 58.0
-theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.62, 0.68, 0.76, 1)
+offset_left = 64.0
+offset_top = 21.0
+offset_right = 418.0
+offset_bottom = 31.0
+theme_override_font_sizes/font_size = 10
+theme_override_colors/font_color = Color(0.47, 0.52, 0.59, 1)
 text = "0 / 10 XP"
 horizontal_alignment = 1
 
+[node name="WaveLabel" type="Label" parent="HUD"]
+offset_left = 24.0
+offset_top = 20.0
+offset_right = 310.0
+offset_bottom = 48.0
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.76, 0.80, 0.87, 1)
+theme_override_constants/outline_size = 2
+theme_override_colors/font_outline_color = Color(0.04, 0.045, 0.055, 0.85)
+text = "WAVE 1 / 13   35"
+
 [node name="Stats" type="Label" parent="HUD"]
 offset_left = 24.0
-offset_top = 91.0
+offset_top = 54.0
 offset_right = 1020.0
-offset_bottom = 135.0
-theme_override_font_sizes/font_size = 18
+offset_bottom = 96.0
+theme_override_font_sizes/font_size = 17
 theme_override_constants/outline_size = 3
 theme_override_colors/font_outline_color = Color(0.04, 0.045, 0.055, 0.85)
 text = "Initializing..."
