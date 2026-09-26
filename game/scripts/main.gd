@@ -18,6 +18,202 @@ const FIXED_WORD_X := 48.0
 var rng := RandomNumberGenerator.new()
 var combat = CombatSystemScript.new()
 
+# Typing state ----------------------------------------------------------------
+var word_pool: Array[String] = []
+var word_queue: Array[String] = []
+var typed_index := 0
+
+var caret_target_x := FIXED_WORD_X
+var caret_visual_x := FIXED_WORD_X
+var caret_initialized := false
+var caret_idle_time := 0.0
+
+# World -----------------------------------------------------------------------
+var enemies: Array[Dictionary] = []
+var bullets: Array[Dictionary] = []
+var particles: Array[Dictionary] = []
+var damage_numbers: Array[Dictionary] = []
+var pending_reactions: Array[Dictionary] = []
+var reaction_waves: Array[Dictionary] = []
+
+var spawn_timer := 0.0
+var spawn_interval := 0.95
+var elapsed := 0.0
+var error_flash := 0.0
+var player_recoil := 0.0
+var shake_time := 0.0
+var shake_strength := 0.0
+
+# Run state -------------------------------------------------------------------
+var kills := 0
+var words_completed := 0
+var streak := 0
+var best_streak := 0
+var max_hp := BASE_MAX_HP
+var hp := BASE_MAX_HP
+var run_over := false
+
+var correct_keys := 0
+var incorrect_keys := 0
+var typed_characters := 0
+
+# XP / level ups --------------------------------------------------------------
+var level := 1
+var xp_total := 0
+var xp_in_level := 0
+var xp_required := 10
+var pending_level_ups := 0
+var level_up_open := false
+var upgrade_definitions: Array = []
+var upgrade_levels: Dictionary = {}
+var current_upgrade_choices: Array[Dictionary] = []
+var upgrade_candidate_index := -1
+var upgrade_typed := ""
+var upgrade_error_time := 0.0
+var xp_hud_pulse := 0.0
+
+var reaction_counts := {
+	"shatter": 0,
+	"overload": 0
+}
+
+# UI --------------------------------------------------------------------------
+@onready var typing_viewport: Control = $HUD/TypingViewport
+@onready var typing_panel: RichTextLabel = $HUD/TypingViewport/TypingPanel
+@onready var typing_caret: ColorRect = $HUD/TypingViewport/TypingCaret
+@onready var stats_label: Label = $HUD/Stats
+
+@onready var xp_panel: ColorRect = $HUD/XPPanel
+@onready var xp_bar_background: ColorRect = $HUD/XPPanel/BarFrame/XPBarBackground
+@onready var xp_bar_fill: ColorRect = $HUD/XPPanel/BarFrame/XPBarBackground/XPBarFill
+@onready var xp_count_label: Label = $HUD/XPPanel/XPCount
+@onready var level_label: Label = $HUD/XPPanel/LevelBadge/LevelLabel
+
+@onready var upgrade_overlay: ColorRect = $HUD/UpgradeOverlay
+@onready var upgrade_title: Label = $HUD/UpgradeOverlay/Title
+@onready var upgrade_subtitle: Label = $HUD/UpgradeOverlay/Subtitle
+@onready var upgrade_card_nodes: Array[ColorRect] = [
+	$HUD/UpgradeOverlay/Card1,
+	$HUD/UpgradeOverlay/Card2,
+	$HUD/UpgradeOverlay/Card3
+]
+@onready var upgrade_card_labels: Array[RichTextLabel] = [
+	$HUD/UpgradeOverlay/Card1/Text,
+	$HUD/UpgradeOverlay/Card2/Text,
+	$HUD/UpgradeOverlay/Card3/Text
+]
+
+@onready var death_overlay: ColorRect = $HUD/DeathOverlay
+@onready var death_summary: Label = $HUD/DeathOverlay/Summary
+
+
+func _ready() -> void:
+	rng.randomize()
+	combat.load_definitions("starter")
+	_load_words()
+	_load_upgrades()
+
+	for i in range(WORD_BUFFER):
+		_append_random_word()
+
+	_update_typing_ui()
+	_update_xp_ui()
+	_update_stats()
+	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	_update_typing_caret(delta)
+	_update_xp_hud(delta)
+	upgrade_error_time = maxf(upgrade_error_time - delta, 0.0)
+
+	if run_over or level_up_open:
+		# Combat pauses for decisions/death, while existing visual feedback
+		# gets a chance to settle.
+		_update_particles(delta)
+		_update_damage_numbers(delta)
+		_update_reaction_waves(delta)
+		queue_redraw()
+		return
+
+	elapsed += delta
+	error_flash = maxf(error_flash - delta, 0.0)
+	player_recoil = maxf(player_recoil - delta, 0.0)
+	shake_time = maxf(shake_time - delta, 0.0)
+
+	spawn_timer -= delta
+	if spawn_timer <= 0.0:
+		_spawn_enemy()
+		spawn_timer = spawn_interval
+		spawn_interval = maxf(0.28, 0.95 - elapsed * 0.004)
+
+	_update_enemies(delta)
+	_update_bullets(delta)
+	_process_pending_reactions()
+	_update_reaction_waves(delta)
+	_update_particles(delta)
+	_update_damage_numbers(delta)
+	_update_stats()
+	_update_canvas_shake()
+	queue_redraw()
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not event.pressed or event.echo:
+		return
+
+	if run_over:
+		if event.keycode == KEY_R:
+			get_tree().reload_current_scene()
+		return
+
+	if level_up_open:
+		if event.unicode != 0:
+			var upgrade_key := char(event.unicode).to_lower()
+			if upgrade_key.length() == 1 and upgrade_key >= "a" and upgrade_key <= "z":
+				_handle_upgrade_typing(upgrade_key)
+		return
+
+	if event.unicode == 0:
+		return
+
+	var typed := char(event.unicode).to_lower()
+	if typed.length() != 1 or typed < "a" or typed > "z":
+		return
+
+	typed_characters += 1
+	caret_idle_time = 0.0
+
+	var current := _get_current_word()
+	if current.is_empty():
+		return
+
+	var expected := current.substr(typed_index, 1)
+
+	if typed == expected:
+		correct_keys += 1
+		typed_index += 1
+		streak += 1
+		best_streak = maxi(best_streak, streak)
+		player_recoil = 0.07
+
+		_emit_combat_trigger("correct_key", {
+			"character": typed,
+			"word": current,
+			"word_length": current.length(),
+			"streak": streak
+		})
+
+		if typed_index >= current.length():
+			_complete_word(current)
+	else:
+		incorrect_keys += 1
+		streak = 0
+		error_flash = 0.16
+
+	_update_typing_ui()
+
+
 # Typing stream ---------------------------------------------------------------
 
 func _load_words() -> void:
