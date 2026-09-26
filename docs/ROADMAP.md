@@ -23,7 +23,7 @@
 - [x] Add upgrade selection screen.
 
 ## Phase 2.5 - Run Loop
-- [x] Add 13-wave structure; upgrades only resolve between waves.
+- [x] Add prototype wave structure; upgrades only resolve between waves.
 - [x] Add minimalist physical XP HUD and readable particle travel.
 - [x] Add slower level thresholds for run pacing.
 - [x] Add death / restart flow.
