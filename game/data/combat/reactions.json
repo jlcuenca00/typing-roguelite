@@ -2,23 +2,23 @@
   "reactions": [
     {
       "id": "shatter",
-      "name": "Shatter",
+      "name": "SHATTER",
       "requires_effects": ["freeze"],
       "requires_tags": ["blast"],
       "consume_effects": ["freeze"],
-      "area_radius": 72.0,
-      "area_damage": 13.0,
-      "color": "#bdefff"
+      "area_radius": 82.0,
+      "area_damage": 18.0,
+      "color": "#d7f7ff"
     },
     {
       "id": "overload",
-      "name": "Overload",
+      "name": "OVERLOAD",
       "requires_effects": ["shock"],
       "requires_tags": ["blast"],
       "consume_effects": ["shock"],
-      "area_radius": 88.0,
-      "area_damage": 17.0,
-      "color": "#c2a6ff"
+      "area_radius": 96.0,
+      "area_damage": 22.0,
+      "color": "#ff5ce1"
     }
   ]
 }
