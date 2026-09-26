@@ -3,10 +3,10 @@
     "weapons": ["smg", "pistol", "shotgun"],
     "effect_bindings": {
       "smg": [
-        { "effect_id": "freeze", "chance": 0.12 }
+        { "effect_id": "freeze", "chance": 0.35 }
       ],
       "pistol": [
-        { "effect_id": "shock", "chance": 0.35 }
+        { "effect_id": "shock", "chance": 0.65 }
       ]
     }
   }
