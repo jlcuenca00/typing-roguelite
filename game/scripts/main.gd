@@ -21,9 +21,14 @@ var bullets: Array[Dictionary] = []
 var particles: Array[Dictionary] = []
 var damage_numbers: Array[Dictionary] = []
 var pending_reactions: Array[Dictionary] = []
+var reaction_waves: Array[Dictionary] = []
+var reaction_counts := {
+	"shatter": 0,
+	"overload": 0
+}
 
 var spawn_timer := 0.0
-var spawn_interval := 0.72
+var spawn_interval := 0.60
 var elapsed := 0.0
 var error_flash := 0.0
 var key_pulse := 0.0
@@ -78,11 +83,12 @@ func _process(delta: float) -> void:
 	if spawn_timer <= 0.0:
 		_spawn_enemy()
 		spawn_timer = spawn_interval
-		spawn_interval = maxf(0.28, 0.72 - elapsed * 0.003)
+		spawn_interval = maxf(0.22, 0.60 - elapsed * 0.003)
 
 	_update_enemies(delta)
 	_update_bullets(delta)
 	_process_pending_reactions()
+	_update_reaction_waves(delta)
 	_update_particles(delta)
 	_update_damage_numbers(delta)
 	_update_stats()
@@ -204,7 +210,9 @@ func _spawn_enemy() -> void:
 	var angle := rng.randf_range(0.0, TAU)
 	var position := center + Vector2.RIGHT.rotated(angle) * SPAWN_RADIUS
 	var speed := rng.randf_range(34.0, 58.0) + minf(elapsed * 0.22, 28.0)
-	var hp_value := 24.0 + minf(elapsed * 0.12, 16.0)
+	# Higher health deliberately gives statuses time to stick and reactions time
+	# to happen. We are testing combo readability, not final balance yet.
+	var hp_value := 68.0 + minf(elapsed * 0.20, 30.0)
 
 	enemies.append({
 		"position": position,
@@ -432,8 +440,16 @@ func _process_pending_reactions() -> void:
 			Color.WHITE
 		)
 
-		_spawn_impact_particles(center, reaction_color, 16)
+		_spawn_impact_particles(center, reaction_color, 20)
 		_spawn_combat_text(center + Vector2(0.0, -22.0), String(reaction.get("name", "REACTION")), reaction_color)
+		_spawn_reaction_wave(center, radius, reaction_color)
+
+		var reaction_id := String(reaction.get("id", ""))
+		if reaction_counts.has(reaction_id):
+			reaction_counts[reaction_id] = int(reaction_counts[reaction_id]) + 1
+
+		shake_time = maxf(shake_time, 0.11)
+		shake_strength = maxf(shake_strength, 3.0)
 
 		for i in range(enemies.size() - 1, -1, -1):
 			var enemy_pos: Vector2 = enemies[i]["position"]
@@ -451,6 +467,27 @@ func _process_pending_reactions() -> void:
 				_kill_enemy(i, enemy_pos)
 			else:
 				enemies[i] = enemy
+
+
+func _spawn_reaction_wave(center: Vector2, radius: float, color: Color) -> void:
+	reaction_waves.append({
+		"center": center,
+		"radius": radius,
+		"life": 0.34,
+		"max_life": 0.34,
+		"color": color
+	})
+
+
+func _update_reaction_waves(delta: float) -> void:
+	for i in range(reaction_waves.size() - 1, -1, -1):
+		var wave := reaction_waves[i]
+		wave["life"] = float(wave["life"]) - delta
+
+		if float(wave["life"]) <= 0.0:
+			reaction_waves.remove_at(i)
+		else:
+			reaction_waves[i] = wave
 
 
 func _kill_enemy(index: int, position: Vector2) -> void:
@@ -625,14 +662,16 @@ func _update_stats() -> void:
 	if total_attempts > 0:
 		accuracy = (float(correct_keys) / float(total_attempts)) * 100.0
 
-	stats_label.text = "HP %d/%d   KILLS %d   XP %d   WPM %d   ACC %.1f%%   STREAK %d" % [
+	stats_label.text = "HP %d/%d   KILLS %d   XP %d   WPM %d   ACC %.1f%%   STREAK %d   SHAT %d   OVR %d" % [
 		int(hp),
 		int(MAX_HP),
 		kills,
 		xp,
 		wpm,
 		accuracy,
-		streak
+		streak,
+		int(reaction_counts["shatter"]),
+		int(reaction_counts["overload"])
 	]
 
 
@@ -661,12 +700,29 @@ func _draw() -> void:
 			enemy_color = enemy_color.lerp(Color.WHITE, 0.72)
 		draw_circle(pos, ENEMY_RADIUS, enemy_color)
 
+		# Multiple statuses can coexist. Separate rings keep both readable even
+		# when one status owns the enemy fill color.
+		var statuses: Dictionary = enemy.get("statuses", {})
+		if statuses.has("freeze"):
+			draw_arc(pos, ENEMY_RADIUS + 3.0, 0.0, TAU, 24, Color(0.40, 0.81, 1.0, 0.95), 2.0)
+		if statuses.has("shock"):
+			draw_arc(pos, ENEMY_RADIUS + 6.0, 0.0, TAU, 24, Color(1.0, 0.85, 0.30, 0.95), 2.0)
+
 	for bullet in bullets:
 		var pos: Vector2 = bullet["position"]
 		var direction := Vector2(bullet["velocity"]).normalized()
 		var bullet_color: Color = bullet.get("color", Color(1.0, 0.90, 0.50))
 		draw_line(pos - direction * 7.0, pos, bullet_color, 3.0)
 		draw_circle(pos, BULLET_RADIUS, bullet_color.lightened(0.18))
+
+	for wave in reaction_waves:
+		var max_life := float(wave["max_life"])
+		var life_ratio := clampf(float(wave["life"]) / max_life, 0.0, 1.0)
+		var progress := 1.0 - life_ratio
+		var wave_color: Color = wave["color"]
+		wave_color.a = life_ratio
+		var current_radius := lerpf(8.0, float(wave["radius"]), progress)
+		draw_arc(Vector2(wave["center"]), current_radius, 0.0, TAU, 48, wave_color, 3.0)
 
 	for particle in particles:
 		var life_ratio := clampf(float(particle["life"]) / float(particle["max_life"]), 0.0, 1.0)
@@ -693,10 +749,12 @@ func _draw() -> void:
 func _get_enemy_draw_color(enemy: Dictionary) -> Color:
 	var statuses: Dictionary = enemy.get("statuses", {})
 
-	if statuses.has("freeze"):
-		return Color(0.48, 0.86, 1.0)
+	# Shock owns yellow, Freeze owns blue. If both are present, Shock gets the
+	# fill while the Freeze ring remains visible around it.
 	if statuses.has("shock"):
-		return Color(0.67, 0.56, 1.0)
+		return Color(1.0, 0.85, 0.30)
+	if statuses.has("freeze"):
+		return Color(0.40, 0.81, 1.0)
 	if statuses.has("burn"):
 		return Color(1.0, 0.45, 0.28)
 
