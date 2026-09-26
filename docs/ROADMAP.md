@@ -24,7 +24,7 @@
 
 ## Phase 2.5 - Run Loop
 - [x] Add prototype wave structure; upgrades only resolve between waves.
-- [x] Escalate wave duration so early waves contain fewer enemies.
+- [x] Define waves by enemy count and scale horde size across the run.
 - [x] Add minimalist physical XP HUD and readable particle travel.
 - [x] Add slower level thresholds for run pacing.
 - [x] Add death / restart flow.
