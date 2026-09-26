@@ -10,20 +10,20 @@
   },
   "shock": {
     "name": "Shock",
-    "duration": 2.5,
+    "duration": 2.8,
     "max_stacks": 1,
     "tick_interval": 0.0,
     "tick_damage": 0.0,
     "speed_multiplier": 1.0,
-    "color": "#9f8cff"
+    "color": "#ffd84d"
   },
   "freeze": {
     "name": "Freeze",
-    "duration": 2.0,
+    "duration": 2.6,
     "max_stacks": 1,
     "tick_interval": 0.0,
     "tick_damage": 0.0,
     "speed_multiplier": 0.58,
-    "color": "#7bdcff"
+    "color": "#66cfff"
   }
 }
