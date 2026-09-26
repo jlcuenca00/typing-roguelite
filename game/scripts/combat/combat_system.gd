@@ -70,7 +70,8 @@ func build_attacks(trigger_id: String, context: Dictionary = {}) -> Array[Dictio
 func get_effect_definition(effect_id: String) -> Dictionary:
 	if not effects.has(effect_id):
 		return {}
-	return Dictionary(effects[effect_id]).duplicate(true)
+	var definition: Dictionary = effects[effect_id]
+	return definition.duplicate(true)
 
 
 func resolve_reactions(active_effects: Dictionary, incoming_tags: Array) -> Array[Dictionary]:
