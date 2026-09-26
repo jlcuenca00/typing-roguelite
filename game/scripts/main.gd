@@ -139,8 +139,8 @@ func _process(delta: float) -> void:
 	_update_xp_hud(delta)
 	upgrade_error_time = maxf(upgrade_error_time - delta, 0.0)
 
-	if run_over or level_up_open:
-		# Combat pauses for decisions/death, while existing visual feedback
+	if run_over or run_complete or level_up_open or wave_intermission:
+		# Combat pauses for decisions/death/wave breaks, while existing visual feedback
 		# gets a chance to settle.
 		_update_particles(delta)
 		_update_damage_numbers(delta)
@@ -187,6 +187,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if run_over or run_complete:
 		if event.keycode == KEY_R:
 			get_tree().reload_current_scene()
+		return
+
+	if wave_intermission and not level_up_open:
 		return
 
 	if level_up_open:
