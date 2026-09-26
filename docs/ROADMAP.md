@@ -15,10 +15,10 @@
 - [ ] Add screen shake only for high-impact effects.
 
 ## Phase 2 - Buildcraft
-- [ ] Separate weapons, triggers, and effects.
-- [ ] Add 3 prototype weapons.
-- [ ] Add 3 prototype effects.
-- [ ] Add 2 reactions.
+- [x] Separate weapons, triggers, and effects.
+- [x] Add 3 prototype weapons.
+- [x] Add 3 prototype effects.
+- [x] Add 2 reactions.
 - [ ] Add 10-15 upgrades.
 - [ ] Add upgrade selection screen.
 
