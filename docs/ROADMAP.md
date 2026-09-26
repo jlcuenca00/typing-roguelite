@@ -19,8 +19,15 @@
 - [x] Add 3 prototype weapons.
 - [x] Add 3 prototype effects.
 - [x] Add 2 reactions.
-- [ ] Add 10-15 upgrades.
-- [ ] Add upgrade selection screen.
+- [x] Add 10-15 upgrades.
+- [x] Add upgrade selection screen.
+
+## Phase 2.5 - Run Loop
+- [x] Add XP bar and visible XP travel.
+- [x] Add level thresholds.
+- [x] Add death / restart flow.
+- [x] Start runs with one weapon instead of a completed build.
+- [x] Smooth-scroll the typing stream between words.
 
 ## Phase 3 - Threats
 - [ ] Add 3 priority enemies.
