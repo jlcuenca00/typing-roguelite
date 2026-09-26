@@ -323,10 +323,12 @@ func _update_typing_ui() -> void:
 		remaining = current.substr(typed_index + 1)
 
 	var pieces: Array[String] = []
-	var current_markup := "[color=#6f7887]" + completed + "[/color]"
+	# Keep the word one color. A thin caret marks the exact insertion point
+	# without turning the next character into a second color block.
+	var current_markup := "[color=#ffffff]" + completed
 	if next_character != "":
-		current_markup += "[bgcolor=#e8edf4][color=#141820]" + next_character + "[/color][/bgcolor]"
-	current_markup += "[color=#ffffff]" + remaining + "[/color]"
+		current_markup += "[color=#8ff0c2]│[/color]" + next_character
+	current_markup += remaining + "[/color]"
 	pieces.append(current_markup)
 
 	for i in range(1, mini(word_queue.size(), 6)):
