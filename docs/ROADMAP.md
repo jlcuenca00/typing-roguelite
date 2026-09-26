@@ -24,12 +24,13 @@
 
 ## Phase 2.5 - Run Loop
 - [x] Add prototype wave structure; upgrades only resolve between waves.
+- [x] Require an explicit typed READY between waves; never auto-start the next wave.
 - [x] Define waves by enemy count and scale horde size across the run.
 - [x] Add minimalist physical XP HUD and readable particle travel.
 - [x] Add slower level thresholds for run pacing.
 - [x] Add death / restart flow.
 - [x] Start runs with one weapon instead of a completed build.
-- [x] Use a fixed-focus typing anchor to prevent eye jumping.
+- [x] Use a two-line Monkeytype-style typing area with faded completed words and line shifts.
 - [x] Type upgrade command words instead of number keys.
 
 ## Phase 3 - Threats
