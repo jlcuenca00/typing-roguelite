@@ -1,56 +1,74 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource path="res://scripts/main.gd" type="Script" id="1_main"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_xp_outline"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.33, 0.37, 0.43, 0.9)
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
-[node name="XPPanel" type="ColorRect" parent="HUD"]
-offset_left = 425.0
+[node name="XPPanel" type="Control" parent="HUD"]
+layout_mode = 3
+anchors_preset = 0
+offset_left = 430.0
 offset_top = 18.0
-offset_right = 855.0
-offset_bottom = 50.0
+offset_right = 850.0
+offset_bottom = 44.0
 mouse_filter = 2
-color = Color(0.055, 0.064, 0.08, 0.94)
 
 [node name="LevelLabel" type="Label" parent="HUD/XPPanel"]
-offset_left = 10.0
-offset_top = 4.0
-offset_right = 58.0
-offset_bottom = 28.0
-theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(0.76, 0.81, 0.87, 1)
+offset_left = 0.0
+offset_top = 2.0
+offset_right = 44.0
+offset_bottom = 22.0
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.67, 0.71, 0.77, 1)
 text = "LV 1"
-horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="XPBarBackground" type="ColorRect" parent="HUD/XPPanel"]
-offset_left = 64.0
-offset_top = 8.0
-offset_right = 418.0
-offset_bottom = 22.0
+[node name="XPBarBackground" type="Panel" parent="HUD/XPPanel"]
+offset_left = 50.0
+offset_top = 5.0
+offset_right = 370.0
+offset_bottom = 19.0
 mouse_filter = 2
-color = Color(0.12, 0.14, 0.17, 1)
+theme_override_styles/panel = SubResource("StyleBoxFlat_xp_outline")
 
 [node name="XPBarFill" type="ColorRect" parent="HUD/XPPanel/XPBarBackground"]
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 0.0
-offset_bottom = 14.0
+offset_left = 1.0
+offset_top = 1.0
+offset_right = 1.0
+offset_bottom = 13.0
 mouse_filter = 2
 color = Color(0.42, 0.95, 0.72, 1)
 
+[node name="XPImpactFlash" type="ColorRect" parent="HUD/XPPanel/XPBarBackground"]
+visible = false
+offset_left = 0.0
+offset_top = -3.0
+offset_right = 2.0
+offset_bottom = 17.0
+mouse_filter = 2
+color = Color(0.88, 1, 0.94, 1)
+
 [node name="XPCount" type="Label" parent="HUD/XPPanel"]
-offset_left = 64.0
-offset_top = 21.0
-offset_right = 418.0
-offset_bottom = 31.0
-theme_override_font_sizes/font_size = 10
-theme_override_colors/font_color = Color(0.47, 0.52, 0.59, 1)
-text = "0 / 10 XP"
-horizontal_alignment = 1
+offset_left = 376.0
+offset_top = 2.0
+offset_right = 420.0
+offset_bottom = 22.0
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.47, 0.51, 0.57, 1)
+text = "0/10"
+horizontal_alignment = 2
+vertical_alignment = 1
 
 [node name="WaveLabel" type="Label" parent="HUD"]
 offset_left = 24.0
@@ -75,33 +93,35 @@ text = "Initializing..."
 
 [node name="TypingBackdrop" type="ColorRect" parent="HUD"]
 offset_left = 285.0
-offset_top = 429.0
+offset_top = 397.0
 offset_right = 995.0
-offset_bottom = 470.0
+offset_bottom = 489.0
 mouse_filter = 2
-color = Color(0.145, 0.165, 0.2, 0.78)
+color = Color(0.105, 0.12, 0.145, 0.62)
 
 [node name="TypingViewport" type="Control" parent="HUD"]
 clip_contents = true
 layout_mode = 3
 anchors_preset = 0
 offset_left = 285.0
-offset_top = 424.0
+offset_top = 401.0
 offset_right = 995.0
-offset_bottom = 500.0
+offset_bottom = 485.0
 mouse_filter = 2
 
 [node name="TypingPanel" type="RichTextLabel" parent="HUD/TypingViewport"]
 layout_mode = 0
 offset_left = 48.0
 offset_top = 0.0
-offset_right = 5000.0
-offset_bottom = 76.0
+offset_right = 662.0
+offset_bottom = 84.0
 bbcode_enabled = true
 fit_content = false
 scroll_active = false
+autowrap_mode = 0
 mouse_filter = 2
 theme_override_font_sizes/normal_font_size = 28
+theme_override_constants/line_separation = 2
 theme_override_constants/outline_size = 4
 theme_override_colors/font_outline_color = Color(0.04, 0.045, 0.055, 0.9)
 text = "typing roguelite"
