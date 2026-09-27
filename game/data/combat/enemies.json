@@ -34,6 +34,7 @@
     "priority": true,
     "spawn_only": false,
     "mechanic": "jam",
+    "player_damage_multiplier": 0.72,
     "color": "#b17cff"
   },
   "brute": {
@@ -59,6 +60,7 @@
     "priority": true,
     "spawn_only": false,
     "mechanic": "shield",
+    "protected_damage_multiplier": 0.55,
     "color": "#65d9e8"
   },
   "caller": {
