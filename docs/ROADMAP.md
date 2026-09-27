@@ -37,9 +37,9 @@
 
 ## Phase 3 - Threats
 - [x] Add first priority enemy prototype (Jammer).
-- [ ] Add 2 more priority enemies.
+- [x] Add 2 more priority enemies (Bulwark, Caller).
 - [x] Add priority typing interruption/resume.
-- [ ] Give priority enemies distinct battlefield mechanics beyond direct typing.
+- [x] Give priority enemies distinct battlefield mechanics beyond direct typing.
 - [ ] Add elite.
 - [ ] Add boss.
 - [ ] Add 10-minute run pacing.
