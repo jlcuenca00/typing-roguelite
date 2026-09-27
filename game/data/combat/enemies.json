@@ -7,6 +7,7 @@
     "speed_multiplier": 1.0,
     "radius_multiplier": 1.0,
     "weight": 1.0,
+    "priority": false,
     "color": "#f25561"
   },
   "runner": {
@@ -17,16 +18,29 @@
     "speed_multiplier": 1.42,
     "radius_multiplier": 0.82,
     "weight": 0.78,
+    "priority": false,
     "color": "#ff965c"
+  },
+  "jammer": {
+    "name": "Jammer",
+    "unlock_wave": 4,
+    "threat_cost": 6,
+    "hp_multiplier": 1.55,
+    "speed_multiplier": 0.88,
+    "radius_multiplier": 1.18,
+    "weight": 0.24,
+    "priority": true,
+    "color": "#b17cff"
   },
   "brute": {
     "name": "Brute",
-    "unlock_wave": 5,
+    "unlock_wave": 6,
     "threat_cost": 4,
     "hp_multiplier": 2.35,
     "speed_multiplier": 0.72,
     "radius_multiplier": 1.35,
     "weight": 0.52,
+    "priority": false,
     "color": "#cf6576"
   }
 }
