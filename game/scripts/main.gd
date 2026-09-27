@@ -217,12 +217,18 @@ func _process(delta: float) -> void:
 		spawn_timer -= delta
 
 		if spawn_timer <= 0.0:
-			_spawn_enemy()
-			wave_spawned_count += 1
-			spawn_timer = spawn_interval
+			if _prepare_next_spawn_slot():
+				_spawn_enemy()
+				wave_spawned_count += 1
+				spawn_timer = spawn_interval
 
-			if wave_spawned_count >= wave_spawn_plan.size():
-				wave_spawning = false
+				if wave_spawned_count >= wave_spawn_plan.size():
+					wave_spawning = false
+			else:
+				# A priority enemy is still active. Keep feeding normal enemies
+				# if possible, otherwise briefly wait instead of stacking another
+				# priority threat on top of it.
+				spawn_timer = 0.18
 
 	_update_enemies(delta)
 	_update_bullets(delta)
@@ -853,6 +859,41 @@ func _execute_attack(attack: Dictionary) -> void:
 			weapon_id,
 			projectile_color
 		)
+
+
+func _has_active_priority_enemy() -> bool:
+	for enemy in enemies:
+		if bool(enemy.get("priority", false)):
+			return true
+	return false
+
+
+func _prepare_next_spawn_slot() -> bool:
+	if wave_spawned_count < 0 or wave_spawned_count >= wave_spawn_plan.size():
+		return false
+
+	var next_spec: Dictionary = wave_spawn_plan[wave_spawned_count]
+	if not bool(next_spec.get("priority", false)):
+		return true
+
+	if not _has_active_priority_enemy():
+		return true
+
+	# Defer the next priority enemy and pull a normal enemy forward. This keeps
+	# the wave moving without forcing the player to handle several priority
+	# commands simultaneously.
+	for i in range(wave_spawned_count + 1, wave_spawn_plan.size()):
+		var candidate: Dictionary = wave_spawn_plan[i]
+		if (
+			not bool(candidate.get("priority", false))
+			and not bool(candidate.get("boss", false))
+		):
+			var held := wave_spawn_plan[wave_spawned_count]
+			wave_spawn_plan[wave_spawned_count] = candidate
+			wave_spawn_plan[i] = held
+			return true
+
+	return false
 
 
 func _spawn_enemy() -> void:
