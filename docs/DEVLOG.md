@@ -49,3 +49,28 @@ Keep this log short. Record decisions, experiments, what worked, what failed, an
 - Add boss encounter architecture.
 - Tune wave 8–10 density/readability and overall 10-minute pacing.
 - Add sound before doing major visual polish.
+
+
+### 2026-09-27 — Priority threats become real mechanics
+
+**Changed**
+- Added Bulwark and Caller priority enemies alongside Jammer.
+- Jammer reduces normal weapon damage while visible.
+- Bulwark protects non-priority enemies with a visible damage-reduction shield.
+- Caller periodically summons fast, zero-XP Swarmers while it remains alive.
+- Priority words now choose their own target from typed prefixes after TAB.
+- Summoned enemies do not alter the authored wave threat/XP budget.
+
+**Why**
+- Priority enemies needed to create battlefield decisions rather than only being special-colored enemies with words.
+- The player should be able to identify and remove the threat through typing without fighting a target selector.
+
+**Result**
+- Three priority mechanics now pressure different parts of the run: player firepower, enemy durability, and screen density.
+- The threat-budget director remains intact because Caller summons are already paid for by Caller's higher threat cost.
+
+**Next**
+- Playtest Waves 4-10 for priority frequency and readability.
+- Add an elite archetype.
+- Build boss encounter architecture.
+- Tune the late-wave density curve and overall 10-minute run pacing.
