@@ -31,6 +31,8 @@ Most enemies are handled by the normal typing stream and automatic targeting.
 
 Priority enemies occasionally display their own word or command. The player can interrupt normal typing, resolve the priority word, then resume the original stream exactly where it paused.
 
+Priority mechanics must be readable before they are dangerous. A normal priority enemy enters the visible arena first, pauses briefly to cast, then activates its mechanic. Offscreen priority enemies never apply their battlefield effect.
+
 ## Build Architecture
 
 ### Weapons
@@ -130,6 +132,12 @@ Target full run: about 20 minutes.
 After victory:
 - Return / Extract
 - Continue / Endless
+
+## Enemy Pressure
+
+Late difficulty should primarily come from horde density, spawn cadence, enemy composition, priority threats, elites, and bosses. The same basic archetype should not simply receive a large universal movement-speed increase every wave. Faster pressure should come from explicitly fast archetypes such as Runners and Swarmers.
+
+Priority enemies should be embedded inside a normal horde rather than replacing it. Their purpose is to create brief attention spikes while the bullet-heaven pressure continues around them.
 
 ## Readability Priority
 
