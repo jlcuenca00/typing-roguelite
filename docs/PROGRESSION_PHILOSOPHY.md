@@ -85,15 +85,11 @@ Only a small recent roster is eligible in a wave. New archetypes enter as the ru
 
 The current perfect-clear XP curve is deliberately shaped so the prototype trends approximately:
 
-- Wave 1: 1 level-up
-- Wave 2: 1
-- Wave 3: 1
-- Wave 4: 1
-- Wave 5: 1
-- Wave 6: up to 2
-- Wave 7: up to 2
-- Wave 8: up to 3
+- Waves 1-5: usually 1 level-up each
+- Waves 6-7: up to 2
+- Waves 8-9: around 2 on a strong clear
+- Wave 10: up to 3 on a near-perfect clear
 
-These are ceilings, not guaranteed rewards. Wave 1 is the onboarding exception and always produces the first level-up.
+These are ceilings, not guaranteed rewards. Wave 1 is the onboarding exception and always produces the first level-up. Late-wave budgets are intentionally more aggressive so the prototype can eventually test the dense, chaotic payoff without making early waves overwhelming.
 
 This preserves the desirable feedback loop: stronger builds do not make the director cheat harder; they simply kill more of the same planned threat budget and therefore recover more of its available XP.
