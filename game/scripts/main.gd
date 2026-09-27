@@ -35,7 +35,23 @@ const WAVE_THREAT_BUDGETS := [
 	440
 ]
 
-const MAX_TYPES_PER_WAVE := 3
+const MAX_TYPES_PER_WAVE := 5
+const PRIORITY_CAPS := [
+	0,
+	0,
+	0,
+	1,
+	1,
+	1,
+	2,
+	2,
+	3,
+	3
+]
+
+const NORMAL_KNOCKBACK_MULTIPLIER := 0.45
+const ELITE_KNOCKBACK_MULTIPLIER := 0.28
+const BOSS_KNOCKBACK_MULTIPLIER := 0.04
 
 const ELITE_START_WAVE := 7
 const ELITE_THREAT_SURCHARGE := 6
@@ -981,10 +997,14 @@ func _prepare_next_spawn_slot() -> bool:
 	if not _has_active_priority_enemy():
 		return true
 
-	# Defer the next priority enemy and pull a normal enemy forward. This keeps
-	# the wave moving without forcing the player to handle several priority
-	# commands simultaneously.
-	for i in range(wave_spawned_count + 1, wave_spawn_plan.size()):
+	# Only borrow a nearby normal enemy. Looking too far ahead drains the whole
+	# normal tail and leaves a slow priority-only cleanup at the end of the wave.
+	var lookahead_end := mini(
+		wave_spawned_count + 6,
+		wave_spawn_plan.size()
+	)
+
+	for i in range(wave_spawned_count + 1, lookahead_end):
 		var candidate: Dictionary = wave_spawn_plan[i]
 		if (
 			not bool(candidate.get("priority", false))
@@ -1251,7 +1271,7 @@ func _update_enemies(delta: float) -> void:
 		pos += knockback * delta
 		enemy["knockback"] = knockback.move_toward(
 			Vector2.ZERO,
-			650.0 * delta
+			900.0 * delta
 		)
 
 		var stop_radius := (
@@ -1510,7 +1530,7 @@ func _update_bullets(delta: float) -> void:
 				).normalized()
 				enemy["knockback"] = Vector2(
 					enemy["knockback"]
-				) + push_direction * 92.0
+				) + push_direction * 92.0 * _knockback_multiplier_for(enemy)
 
 				_spawn_impact_particles(
 					enemy_pos,
@@ -1681,7 +1701,7 @@ func _process_pending_reactions() -> void:
 			var push := (enemy_pos - center).normalized()
 			enemy["knockback"] = Vector2(
 				enemy["knockback"]
-			) + push * 145.0
+			) + push * 145.0 * _knockback_multiplier_for(enemy)
 
 			_spawn_damage_number(
 				enemy_pos,
@@ -2133,8 +2153,48 @@ func _wave_threat_budget(wave_number: int) -> int:
 	return int(WAVE_THREAT_BUDGETS[index])
 
 
+func _priority_cap_for_wave(wave_number: int) -> int:
+	var index := clampi(
+		wave_number - 1,
+		0,
+		PRIORITY_CAPS.size() - 1
+	)
+	return int(PRIORITY_CAPS[index])
+
+
+func _count_priority_specs() -> int:
+	var count := 0
+	for spec in wave_spawn_plan:
+		if bool(spec.get("priority", false)):
+			count += 1
+	return count
+
+
+func _non_priority_candidates(candidates: Array[String]) -> Array[String]:
+	var result: Array[String] = []
+
+	for enemy_id in candidates:
+		if not enemy_definitions.has(enemy_id):
+			continue
+
+		var definition: Dictionary = enemy_definitions[enemy_id]
+		if not bool(definition.get("priority", false)):
+			result.append(enemy_id)
+
+	return result
+
+
+func _knockback_multiplier_for(enemy: Dictionary) -> float:
+	if bool(enemy.get("boss", false)):
+		return BOSS_KNOCKBACK_MULTIPLIER
+	if bool(enemy.get("elite", false)):
+		return ELITE_KNOCKBACK_MULTIPLIER
+	return NORMAL_KNOCKBACK_MULTIPLIER
+
+
 func _available_enemy_ids(wave_number: int) -> Array[String]:
-	var specials: Array[Dictionary] = []
+	var normal_specials: Array[Dictionary] = []
+	var priority_specials: Array[Dictionary] = []
 
 	for enemy_id in enemy_definitions.keys():
 		if String(enemy_id) == "basic":
@@ -2143,14 +2203,26 @@ func _available_enemy_ids(wave_number: int) -> Array[String]:
 		var definition: Dictionary = enemy_definitions[enemy_id]
 		if bool(definition.get("spawn_only", false)):
 			continue
-		var unlock_wave := int(definition.get("unlock_wave", 1))
-		if unlock_wave <= wave_number:
-			specials.append({
-				"id": String(enemy_id),
-				"unlock_wave": unlock_wave
-			})
 
-	specials.sort_custom(
+		var unlock_wave := int(definition.get("unlock_wave", 1))
+		if unlock_wave > wave_number:
+			continue
+
+		var entry := {
+			"id": String(enemy_id),
+			"unlock_wave": unlock_wave
+		}
+
+		if bool(definition.get("priority", false)):
+			priority_specials.append(entry)
+		else:
+			normal_specials.append(entry)
+
+	normal_specials.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			return int(a["unlock_wave"]) > int(b["unlock_wave"])
+	)
+	priority_specials.sort_custom(
 		func(a: Dictionary, b: Dictionary) -> bool:
 			return int(a["unlock_wave"]) > int(b["unlock_wave"])
 	)
@@ -2159,9 +2231,15 @@ func _available_enemy_ids(wave_number: int) -> Array[String]:
 	if enemy_definitions.has("basic"):
 		result.append("basic")
 
-	var special_slots := maxi(MAX_TYPES_PER_WAVE - result.size(), 0)
-	for i in range(mini(special_slots, specials.size())):
-		result.append(String(specials[i]["id"]))
+	# Keep normal enemy variety alive in late waves instead of allowing the
+	# newest priority archetypes to replace the entire normal roster.
+	var normal_slots := mini(2, normal_specials.size())
+	for i in range(normal_slots):
+		result.append(String(normal_specials[i]["id"]))
+
+	var remaining_slots := maxi(MAX_TYPES_PER_WAVE - result.size(), 0)
+	for i in range(mini(remaining_slots, priority_specials.size())):
+		result.append(String(priority_specials[i]["id"]))
 
 	return result
 
@@ -2286,15 +2364,21 @@ func _spread_priority_spawns() -> void:
 	if priorities.is_empty():
 		return
 
+	# Priority threats occupy broad bands across the wave. The first one cannot
+	# appear immediately, and the last one cannot consume the tail of the wave.
+	# This guarantees normal enemies keep arriving before and after each spike.
 	var final_count := others.size() + priorities.size()
 
 	for i in range(priorities.size()):
 		var ratio := float(i + 1) / float(priorities.size() + 1)
-		ratio += rng.randf_range(-0.055, 0.055)
-		ratio = clampf(ratio, 0.16, 0.88)
+		var min_ratio := 0.22
+		var max_ratio := 0.76
+		ratio = lerpf(min_ratio, max_ratio, ratio)
+		ratio += rng.randf_range(-0.035, 0.035)
+		ratio = clampf(ratio, min_ratio, max_ratio)
 
 		var slot := int(round(ratio * float(final_count - 1)))
-		slot = clampi(slot, 1, wave_spawn_plan.size())
+		slot = clampi(slot, 2, maxi(wave_spawn_plan.size() - 2, 2))
 		wave_spawn_plan.insert(slot, priorities[i])
 
 
@@ -2325,8 +2409,15 @@ func _prepare_wave_spawn_plan(wave_number: int) -> void:
 	)
 
 	while remaining_budget > 0:
+		var candidates := available
+		if _count_priority_specs() >= _priority_cap_for_wave(wave_number):
+			candidates = _non_priority_candidates(available)
+
+		if candidates.is_empty():
+			candidates = ["basic"]
+
 		var enemy_id := _weighted_enemy_choice(
-			available,
+			candidates,
 			remaining_budget
 		)
 		if not enemy_definitions.has(enemy_id):
