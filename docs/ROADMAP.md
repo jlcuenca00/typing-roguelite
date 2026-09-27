@@ -43,7 +43,9 @@
 - [x] Distribute priority spawns across each wave and prevent active priority stacking.
 - [x] Add elite modifier system (Regenerator prototype).
 - [x] Add Wave 10 boss architecture with typed phase breaks.
-- [ ] Add 10-minute run pacing.
+- [x] Add late-wave spawn density ramp, irregular batches, and within-wave crescendo.
+- [x] Add late-chaos safety caps for transient visual feedback.
+- [ ] Tune the full run toward the final target duration after playtesting.
 
 ## Phase 4 - Permanent Progression
 - [ ] Add meta currency earned from runs.
