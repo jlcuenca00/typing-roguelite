@@ -46,8 +46,8 @@ var combat = CombatSystemScript.new()
 var enemy_definitions: Dictionary = {}
 var next_enemy_uid := 1
 var locked_target_uid := -1
-var priority_focus_uid := -1
-var priority_typed_index := 0
+var priority_mode_active := false
+var priority_typed_prefix := ""
 
 # Typing state ----------------------------------------------------------------
 var word_pool: Array[String] = []
@@ -255,7 +255,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 
 	if event.keycode == KEY_TAB:
-		_toggle_priority_focus()
+		_toggle_priority_mode()
 		return
 
 	if event.unicode == 0:
@@ -265,7 +265,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if typed.length() != 1 or typed < "a" or typed > "z":
 		return
 
-	if priority_focus_uid >= 0:
+	if priority_mode_active:
 		_handle_priority_typing(typed)
 		return
 
@@ -315,91 +315,127 @@ func _get_enemy_index_by_uid(uid: int) -> int:
 	return -1
 
 
-func _get_nearest_priority_index() -> int:
+func _get_visible_priority_indices() -> Array[int]:
 	var viewport_rect := get_viewport_rect()
-	var center := viewport_rect.size * 0.5
-	var best_index := -1
-	var best_distance_sq := INF
+	var result: Array[int] = []
 
 	for i in range(enemies.size()):
 		if not bool(enemies[i].get("priority", false)):
 			continue
 
 		var pos: Vector2 = enemies[i]["position"]
-		if not viewport_rect.has_point(pos):
-			continue
+		if viewport_rect.has_point(pos):
+			result.append(i)
 
-		var distance_sq := center.distance_squared_to(pos)
-		if distance_sq < best_distance_sq:
-			best_distance_sq = distance_sq
-			best_index = i
-
-	return best_index
+	return result
 
 
-func _toggle_priority_focus() -> void:
-	if priority_focus_uid >= 0:
-		priority_focus_uid = -1
-		priority_typed_index = 0
+func _get_priority_candidate_indices(prefix: String) -> Array[int]:
+	var result: Array[int] = []
+
+	for index in _get_visible_priority_indices():
+		var command := String(
+			enemies[index].get("priority_word", "")
+		).to_lower()
+
+		if prefix.is_empty() or command.begins_with(prefix):
+			result.append(index)
+
+	return result
+
+
+func _toggle_priority_mode() -> void:
+	if priority_mode_active:
+		priority_mode_active = false
+		priority_typed_prefix = ""
 		return
 
-	var index := _get_nearest_priority_index()
-	if index < 0:
+	if _get_visible_priority_indices().is_empty():
 		return
 
-	priority_focus_uid = int(enemies[index].get("uid", -1))
-	priority_typed_index = 0
+	priority_mode_active = true
+	priority_typed_prefix = ""
 
 
 func _handle_priority_typing(typed: String) -> void:
-	var index := _get_enemy_index_by_uid(priority_focus_uid)
-	if index < 0:
-		priority_focus_uid = -1
-		priority_typed_index = 0
-		return
-
 	typed_characters += 1
 	caret_idle_time = 0.0
 
-	var enemy := enemies[index]
-	var command := String(enemy.get("priority_word", ""))
-	if command.is_empty():
-		priority_focus_uid = -1
-		priority_typed_index = 0
-		return
+	var proposed := priority_typed_prefix + typed
+	var candidates := _get_priority_candidate_indices(proposed)
 
-	var expected := command.substr(priority_typed_index, 1)
+	# If the current sequence stops matching, immediately treat this key as
+	# the possible start of another visible priority word. This keeps the mode
+	# fast and lets the player's typing choose the target instead of a cursor.
+	if candidates.is_empty():
+		candidates = _get_priority_candidate_indices(typed)
 
-	if typed == expected:
-		correct_keys += 1
-		streak += 1
-		best_streak = maxi(best_streak, streak)
-		priority_typed_index += 1
-		enemy["flash"] = 0.10
+		if candidates.is_empty():
+			incorrect_keys += 1
+			streak = 0
+			priority_typed_prefix = ""
+			error_flash = 0.16
+			return
+
+		priority_typed_prefix = typed
+	else:
+		priority_typed_prefix = proposed
+
+	correct_keys += 1
+	streak += 1
+	best_streak = maxi(best_streak, streak)
+
+	for index in candidates:
+		var enemy := enemies[index]
+		enemy["flash"] = 0.08
 		enemies[index] = enemy
 
-		if priority_typed_index >= command.length():
+	# Resolve whichever visible command the typed sequence exactly matches.
+	# Other priority enemies can share early letters; the typed word itself is
+	# the selector, so the player never has to inspect a target highlight first.
+	for index in candidates:
+		var enemy := enemies[index]
+		var command := String(
+			enemy.get("priority_word", "")
+		).to_lower()
+
+		if command == priority_typed_prefix:
 			var position: Vector2 = enemy["position"]
 			_spawn_combat_text(
 				position + Vector2(0.0, -34.0),
 				"PURGED",
 				Color(0.72, 0.95, 1.0)
 			)
-			priority_focus_uid = -1
-			priority_typed_index = 0
+			priority_mode_active = false
+			priority_typed_prefix = ""
 			_kill_enemy(index, position)
-	else:
-		incorrect_keys += 1
-		streak = 0
-		priority_typed_index = 0
-		error_flash = 0.16
+			return
 
 
 func _random_priority_word() -> String:
+	var existing: Array[String] = []
+
+	for enemy in enemies:
+		if bool(enemy.get("priority", false)):
+			existing.append(
+				String(enemy.get("priority_word", "")).to_lower()
+			)
+
 	var candidates: Array[String] = []
 
 	for word in word_pool:
-		if word.length() >= 4 and word.length() <= 7:
+		if word.length() < 4 or word.length() > 7:
+			continue
+
+		var safe := true
+		for used in existing:
+			# Avoid duplicate commands and prefix ambiguity such as "rate"
+			# versus "rather" while both are alive.
+			if word == used or word.begins_with(used) or used.begins_with(word):
+				safe = false
+				break
+
+		if safe:
 			candidates.append(word)
 
 	if candidates.is_empty():
@@ -583,7 +619,7 @@ func _update_typing_caret(delta: float) -> void:
 	if word_queue.is_empty():
 		return
 
-	if priority_focus_uid >= 0:
+	if priority_mode_active:
 		typing_caret.visible = false
 		typing_panel.modulate.a = 0.42
 		return
@@ -774,9 +810,10 @@ func _update_enemies(delta: float) -> void:
 
 			if removed_uid == locked_target_uid:
 				locked_target_uid = -1
-			if removed_uid == priority_focus_uid:
-				priority_focus_uid = -1
-				priority_typed_index = 0
+
+			if _get_visible_priority_indices().is_empty():
+				priority_mode_active = false
+				priority_typed_prefix = ""
 
 			if hp <= 0.0:
 				_end_run()
@@ -1141,9 +1178,10 @@ func _kill_enemy(index: int, position: Vector2) -> void:
 
 	if enemy_uid == locked_target_uid:
 		locked_target_uid = -1
-	if enemy_uid == priority_focus_uid:
-		priority_focus_uid = -1
-		priority_typed_index = 0
+
+	if _get_visible_priority_indices().is_empty():
+		priority_mode_active = false
+		priority_typed_prefix = ""
 
 	kills += 1
 	wave_resolved_count += 1
@@ -1717,8 +1755,8 @@ func _start_next_wave() -> void:
 	level_up_open = false
 	wave_continue_waiting = false
 	locked_target_uid = -1
-	priority_focus_uid = -1
-	priority_typed_index = 0
+	priority_mode_active = false
+	priority_typed_prefix = ""
 	upgrade_overlay.visible = false
 	wave_intermission = false
 	current_wave += 1
@@ -2178,10 +2216,25 @@ func _draw() -> void:
 			)
 
 		if bool(enemy.get("priority", false)):
-			var uid := int(enemy.get("uid", -1))
-			var command := String(enemy.get("priority_word", "")).to_upper()
-			var focused := uid == priority_focus_uid
-			var ring_color := Color(0.72, 0.52, 1.0, 0.95) if not focused else Color(0.55, 0.95, 1.0, 1.0)
+			var command_lower := String(
+				enemy.get("priority_word", "")
+			).to_lower()
+			var command := command_lower.to_upper()
+			var matches_prefix := (
+				priority_mode_active
+				and (
+					priority_typed_prefix.is_empty()
+					or command_lower.begins_with(priority_typed_prefix)
+				)
+			)
+
+			var ring_color := Color(0.72, 0.52, 1.0, 0.95)
+			if priority_mode_active:
+				ring_color = (
+					Color(0.55, 0.95, 1.0, 1.0)
+					if matches_prefix
+					else Color(0.45, 0.38, 0.55, 0.38)
+				)
 
 			draw_arc(
 				pos,
@@ -2193,10 +2246,19 @@ func _draw() -> void:
 				2.0
 			)
 
-			var word_pos := pos + Vector2(-enemy_radius - 16.0, -enemy_radius - 18.0)
-			if focused:
-				var done := command.substr(0, priority_typed_index)
-				var remaining := command.substr(priority_typed_index)
+			var word_pos := pos + Vector2(
+				-enemy_radius - 16.0,
+				-enemy_radius - 18.0
+			)
+
+			if matches_prefix and not priority_typed_prefix.is_empty():
+				var done := command.substr(
+					0,
+					priority_typed_prefix.length()
+				)
+				var remaining := command.substr(
+					priority_typed_prefix.length()
+				)
 				draw_string(
 					world_font,
 					word_pos,
@@ -2222,6 +2284,11 @@ func _draw() -> void:
 					Color(0.94, 0.97, 1.0)
 				)
 			else:
+				var word_color := (
+					Color(0.78, 0.72, 1.0)
+					if not priority_mode_active or matches_prefix
+					else Color(0.48, 0.45, 0.54, 0.42)
+				)
 				draw_string(
 					world_font,
 					word_pos,
@@ -2229,7 +2296,7 @@ func _draw() -> void:
 					HORIZONTAL_ALIGNMENT_LEFT,
 					-1,
 					14,
-					Color(0.78, 0.72, 1.0)
+					word_color
 				)
 
 	for bullet in bullets:
