@@ -74,3 +74,23 @@ Keep this log short. Record decisions, experiments, what worked, what failed, an
 - Add an elite archetype.
 - Build boss encounter architecture.
 - Tune the late-wave density curve and overall 10-minute run pacing.
+
+
+### 2026-09-27 — Elite pressure prototype
+
+**Changed**
+- Added budgeted elite promotion beginning on Wave 7.
+- Waves 7-8 receive one elite; Waves 9-10 can receive two.
+- Elite promotion consumes extra threat budget instead of being free difficulty.
+- The first elite trait is Regenerator: after 1.35 seconds without taking damage, it heals roughly 5.5% max HP per second.
+- Direct damage, reaction damage, and damage-over-time ticks suppress regeneration.
+- Elites have a thin gold ring and a compact HP bar so regeneration is visible.
+
+**Why**
+- Elites should alter how the player handles a target, not just be enemies with inflated HP.
+- Regeneration specifically rewards the sticky-targeting system: sustained focus kills the elite efficiently, while switching away gives it room to recover.
+
+**Next**
+- Playtest Waves 4-10 with priority enemies + elites together.
+- Decide whether Regenerator feels threatening or annoying.
+- Build the boss encounter architecture after this combined threat test.
