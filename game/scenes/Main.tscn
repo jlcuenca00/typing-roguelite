@@ -82,6 +82,17 @@ theme_override_constants/outline_size = 3
 theme_override_colors/font_outline_color = Color(0.04, 0.045, 0.055, 0.85)
 text = "Initializing..."
 
+[node name="DevLabel" type="Label" parent="HUD"]
+visible = false
+offset_left = 650.0
+offset_top = 684.0
+offset_right = 1260.0
+offset_bottom = 710.0
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.48, 0.52, 0.60, 0.78)
+text = "DEV  F1 HEAL   F2 GOD OFF   F3 CLEAR WAVE   F4 RESTART"
+horizontal_alignment = 2
+
 [node name="TypingBackdrop" type="ColorRect" parent="HUD"]
 offset_left = 285.0
 offset_top = 397.0
