@@ -48,6 +48,37 @@ const BOSS_WAVE := 10
 const BOSS_ID := "overseer"
 const BOSS_PHASE_THRESHOLDS := [0.66, 0.33]
 
+# Spawn pacing controls density only; waves still end by resolving their
+# authored threat plan, never by a timer.
+const WAVE_SPAWN_INTERVALS := [
+	0.82,
+	0.76,
+	0.68,
+	0.60,
+	0.52,
+	0.44,
+	0.36,
+	0.28,
+	0.22,
+	0.18
+]
+const WAVE_ACTIVE_CAPS := [
+	12,
+	16,
+	22,
+	30,
+	40,
+	52,
+	68,
+	88,
+	112,
+	140
+]
+
+const MAX_VISUAL_PARTICLES := 520
+const MAX_DAMAGE_NUMBERS := 110
+const MAX_REACTION_WAVES := 24
+
 const XP_GOAL_BASE := 8.0
 const XP_GOAL_GROWTH := 1.45
 const XP_GOAL_POWER := 0.80
@@ -180,6 +211,7 @@ func _ready() -> void:
 	_load_enemy_definitions()
 	xp_bar_base_y = xp_bar_background.position.y
 	_prepare_wave_spawn_plan(current_wave)
+	spawn_interval = _spawn_interval_for_wave(current_wave)
 
 	for i in range(WORD_BUFFER):
 		_append_random_word()
@@ -217,18 +249,30 @@ func _process(delta: float) -> void:
 		spawn_timer -= delta
 
 		if spawn_timer <= 0.0:
-			if _prepare_next_spawn_slot():
+			var spawned_this_tick := 0
+			var batch_size := _spawn_batch_for_wave(current_wave)
+
+			while (
+				spawned_this_tick < batch_size
+				and wave_spawned_count < wave_spawn_plan.size()
+				and enemies.size() < _active_enemy_cap_for_wave(current_wave)
+			):
+				if not _prepare_next_spawn_slot():
+					break
+
 				_spawn_enemy()
 				wave_spawned_count += 1
-				spawn_timer = spawn_interval
+				spawned_this_tick += 1
 
-				if wave_spawned_count >= wave_spawn_plan.size():
-					wave_spawning = false
+			if wave_spawned_count >= wave_spawn_plan.size():
+				wave_spawning = false
+
+			if spawned_this_tick > 0:
+				spawn_timer = spawn_interval
 			else:
-				# A priority enemy is still active. Keep feeding normal enemies
-				# if possible, otherwise briefly wait instead of stacking another
-				# priority threat on top of it.
-				spawn_timer = 0.18
+				# The director is waiting on either a priority gate, boss gate,
+				# or the active-enemy safety cap.
+				spawn_timer = 0.12
 
 	_update_enemies(delta)
 	_update_bullets(delta)
@@ -236,6 +280,7 @@ func _process(delta: float) -> void:
 	_update_reaction_waves(delta)
 	_update_particles(delta)
 	_update_damage_numbers(delta)
+	_trim_visual_feedback()
 
 	if (
 		not wave_spawning
@@ -373,8 +418,11 @@ func _update_dev_hud() -> void:
 	if not is_instance_valid(dev_label):
 		return
 
-	dev_label.text = "DEV CONTROLS\nF1  Heal / Revive\nF2  God Mode: %s\nF3  Clear Wave\nF4  Restart" % [
-		"ON" if dev_god_mode else "OFF"
+	dev_label.text = "DEV CONTROLS\nF1  Heal / Revive\nF2  God Mode: %s\nF3  Clear Wave\nF4  Restart\n\nEnemies %d   Bullets %d\nParticles %d" % [
+		"ON" if dev_god_mode else "OFF",
+		enemies.size(),
+		bullets.size(),
+		particles.size()
 	]
 
 
@@ -861,6 +909,32 @@ func _execute_attack(attack: Dictionary) -> void:
 		)
 
 
+func _spawn_interval_for_wave(wave_number: int) -> float:
+	var index := clampi(
+		wave_number - 1,
+		0,
+		WAVE_SPAWN_INTERVALS.size() - 1
+	)
+	return float(WAVE_SPAWN_INTERVALS[index])
+
+
+func _spawn_batch_for_wave(wave_number: int) -> int:
+	if wave_number >= 9:
+		return 3
+	if wave_number >= 7:
+		return 2
+	return 1
+
+
+func _active_enemy_cap_for_wave(wave_number: int) -> int:
+	var index := clampi(
+		wave_number - 1,
+		0,
+		WAVE_ACTIVE_CAPS.size() - 1
+	)
+	return int(WAVE_ACTIVE_CAPS[index])
+
+
 func _has_active_priority_enemy() -> bool:
 	for enemy in enemies:
 		if bool(enemy.get("priority", false)):
@@ -873,6 +947,16 @@ func _prepare_next_spawn_slot() -> bool:
 		return false
 
 	var next_spec: Dictionary = wave_spawn_plan[wave_spawned_count]
+
+	if bool(next_spec.get("boss", false)):
+		# The boss is the finale, not just the last item in the spawn queue.
+		# Wait until the authored horde and any Caller leftovers are gone.
+		return (
+			wave_resolved_count >= wave_spawn_plan.size() - 1
+			and enemies.is_empty()
+			and not _has_pending_xp_particles()
+		)
+
 	if not bool(next_spec.get("priority", false)):
 		return true
 
@@ -2347,8 +2431,8 @@ func _start_next_wave() -> void:
 	wave_intermission = false
 	current_wave += 1
 	wave_spawning = true
-	spawn_timer = 0.35
-	spawn_interval = maxf(0.30, 0.95 - float(current_wave - 1) * 0.045)
+	spawn_timer = 0.30
+	spawn_interval = _spawn_interval_for_wave(current_wave)
 	_prepare_wave_spawn_plan(current_wave)
 	_reset_typing_for_new_wave()
 	_update_wave_ui()
@@ -2670,6 +2754,26 @@ func _update_damage_numbers(delta: float) -> void:
 			damage_numbers[i] = number
 
 
+func _trim_visual_feedback() -> void:
+	while damage_numbers.size() > MAX_DAMAGE_NUMBERS:
+		damage_numbers.pop_front()
+
+	while reaction_waves.size() > MAX_REACTION_WAVES:
+		reaction_waves.pop_front()
+
+	if particles.size() <= MAX_VISUAL_PARTICLES:
+		return
+
+	# XP particles carry progression and are never discarded. Only transient
+	# visual particles are trimmed when late-game chaos becomes excessive.
+	var i := 0
+	while particles.size() > MAX_VISUAL_PARTICLES and i < particles.size():
+		if String(particles[i].get("kind", "")) != "xp":
+			particles.remove_at(i)
+		else:
+			i += 1
+
+
 # HUD / drawing ---------------------------------------------------------------
 
 func _get_current_wpm() -> int:
@@ -2702,6 +2806,9 @@ func _update_stats() -> void:
 		accuracy,
 		streak
 	]
+
+	if OS.is_debug_build():
+		_update_dev_hud()
 
 
 func _update_canvas_shake() -> void:
