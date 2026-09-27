@@ -37,6 +37,13 @@ const WAVE_THREAT_BUDGETS := [
 
 const MAX_TYPES_PER_WAVE := 3
 
+const ELITE_START_WAVE := 7
+const ELITE_THREAT_SURCHARGE := 6
+const ELITE_HP_MULTIPLIER := 1.55
+const ELITE_RADIUS_MULTIPLIER := 1.16
+const ELITE_REGEN_DELAY := 1.35
+const ELITE_REGEN_RATE := 0.055
+
 const XP_GOAL_BASE := 8.0
 const XP_GOAL_GROWTH := 1.45
 const XP_GOAL_POWER := 0.80
@@ -755,10 +762,16 @@ func _spawn_enemy() -> void:
 	var wave_scale := float(current_wave - 1)
 	var base_speed := rng.randf_range(38.0, 62.0) + wave_scale * 2.2 + minf(elapsed * 0.06, 12.0)
 	var base_hp := 44.0 + wave_scale * 4.5 + minf(elapsed * 0.05, 14.0)
+	var is_elite := bool(spec.get("elite", false))
 	var radius := ENEMY_RADIUS * float(spec.get("radius_multiplier", 1.0))
 	var hp_value := base_hp * float(spec.get("hp_multiplier", 1.0))
 	var speed := base_speed * float(spec.get("speed_multiplier", 1.0))
 	var threat_cost := int(spec.get("threat_cost", 1))
+
+	if is_elite:
+		radius *= ELITE_RADIUS_MULTIPLIER
+		hp_value *= ELITE_HP_MULTIPLIER
+
 	var is_priority := bool(spec.get("priority", false))
 	var uid := next_enemy_uid
 	next_enemy_uid += 1
@@ -772,6 +785,12 @@ func _spawn_enemy() -> void:
 		"uid": uid,
 		"position": position,
 		"enemy_id": String(spec.get("enemy_id", "basic")),
+		"elite": is_elite,
+		"elite_trait": String(spec.get("elite_trait", "")),
+		"elite_regen_delay": float(spec.get("elite_regen_delay", ELITE_REGEN_DELAY)),
+		"elite_regen_rate": float(spec.get("elite_regen_rate", ELITE_REGEN_RATE)),
+		"time_since_hit": 0.0,
+		"elite_regen_fx_timer": 0.0,
 		"priority": is_priority,
 		"priority_word": priority_word,
 		"mechanic": String(spec.get("mechanic", "")),
@@ -802,6 +821,41 @@ func _update_enemies(delta: float) -> void:
 		var knockback: Vector2 = enemy["knockback"]
 
 		if (
+			bool(enemy.get("elite", false))
+			and String(enemy.get("elite_trait", "")) == "regenerator"
+		):
+			var time_since_hit := float(enemy.get("time_since_hit", 0.0)) + delta
+			enemy["time_since_hit"] = time_since_hit
+
+			if (
+				time_since_hit >= float(enemy.get("elite_regen_delay", ELITE_REGEN_DELAY))
+				and float(enemy["hp"]) < float(enemy["max_hp"])
+			):
+				var heal_amount := (
+					float(enemy["max_hp"])
+					* float(enemy.get("elite_regen_rate", ELITE_REGEN_RATE))
+					* delta
+				)
+				enemy["hp"] = minf(
+					float(enemy["max_hp"]),
+					float(enemy["hp"]) + heal_amount
+				)
+
+				var regen_fx_timer := float(
+					enemy.get("elite_regen_fx_timer", 0.0)
+				) - delta
+
+				if regen_fx_timer <= 0.0:
+					_spawn_impact_particles(
+						pos,
+						Color(0.58, 1.0, 0.66),
+						3
+					)
+					regen_fx_timer = 0.32
+
+				enemy["elite_regen_fx_timer"] = regen_fx_timer
+
+		if (
 			String(enemy.get("mechanic", "")) == "summon"
 			and get_viewport_rect().has_point(pos)
 		):
@@ -822,6 +876,7 @@ func _update_enemies(delta: float) -> void:
 		var status_damage := _update_enemy_statuses(enemy, delta)
 		if status_damage > 0.0:
 			enemy["hp"] = float(enemy["hp"]) - status_damage
+			enemy["time_since_hit"] = 0.0
 			_spawn_damage_number(
 				pos,
 				int(round(status_damage)),
@@ -895,6 +950,12 @@ func _spawn_summoned_swarmers(origin: Vector2, count: int) -> void:
 			"uid": uid,
 			"position": spawn_pos,
 			"enemy_id": "swarmer",
+			"elite": false,
+			"elite_trait": "",
+			"elite_regen_delay": 0.0,
+			"elite_regen_rate": 0.0,
+			"time_since_hit": 0.0,
+			"elite_regen_fx_timer": 0.0,
 			"priority": false,
 			"priority_word": "",
 			"mechanic": "",
@@ -1067,6 +1128,7 @@ func _update_bullets(delta: float) -> void:
 					)
 
 				enemy["hp"] = float(enemy["hp"]) - damage
+				enemy["time_since_hit"] = 0.0
 				enemy["flash"] = 0.075
 
 				var push_direction := (
@@ -1237,6 +1299,7 @@ func _process_pending_reactions() -> void:
 				)
 
 			enemy["hp"] = float(enemy["hp"]) - applied_damage
+			enemy["time_since_hit"] = 0.0
 			enemy["flash"] = 0.10
 
 			var push := (enemy_pos - center).normalized()
@@ -1754,6 +1817,80 @@ func _weighted_enemy_choice(
 	return affordable.back()
 
 
+func _elite_count_for_wave(wave_number: int) -> int:
+	if wave_number < ELITE_START_WAVE:
+		return 0
+	if wave_number >= 9:
+		return 2
+	return 1
+
+
+func _elite_candidate_ids(available: Array[String]) -> Array[String]:
+	var result: Array[String] = []
+
+	for enemy_id in available:
+		if not enemy_definitions.has(enemy_id):
+			continue
+
+		var definition: Dictionary = enemy_definitions[enemy_id]
+		if bool(definition.get("priority", false)):
+			continue
+		if bool(definition.get("spawn_only", false)):
+			continue
+
+		result.append(enemy_id)
+
+	return result
+
+
+func _append_elites_to_wave_plan(
+	wave_number: int,
+	available: Array[String],
+	remaining_budget: int
+) -> int:
+	var elite_count := _elite_count_for_wave(wave_number)
+	if elite_count <= 0:
+		return remaining_budget
+
+	var candidates := _elite_candidate_ids(available)
+	if candidates.is_empty():
+		return remaining_budget
+
+	for i in range(elite_count):
+		var affordable: Array[String] = []
+
+		for enemy_id in candidates:
+			var definition: Dictionary = enemy_definitions[enemy_id]
+			var total_cost := (
+				maxi(int(definition.get("threat_cost", 1)), 1)
+				+ ELITE_THREAT_SURCHARGE
+			)
+
+			if total_cost <= remaining_budget:
+				affordable.append(enemy_id)
+
+		if affordable.is_empty():
+			break
+
+		var enemy_id := affordable[rng.randi_range(0, affordable.size() - 1)]
+		var definition: Dictionary = enemy_definitions[enemy_id]
+		var base_cost := maxi(int(definition.get("threat_cost", 1)), 1)
+		var elite_cost := base_cost + ELITE_THREAT_SURCHARGE
+		var spawn_spec := definition.duplicate(true)
+
+		spawn_spec["enemy_id"] = enemy_id
+		spawn_spec["elite"] = true
+		spawn_spec["elite_trait"] = "regenerator"
+		spawn_spec["elite_regen_delay"] = ELITE_REGEN_DELAY
+		spawn_spec["elite_regen_rate"] = ELITE_REGEN_RATE
+		spawn_spec["threat_cost"] = elite_cost
+
+		wave_spawn_plan.append(spawn_spec)
+		remaining_budget -= elite_cost
+
+	return remaining_budget
+
+
 func _prepare_wave_spawn_plan(wave_number: int) -> void:
 	wave_spawn_plan.clear()
 
@@ -1762,6 +1899,12 @@ func _prepare_wave_spawn_plan(wave_number: int) -> void:
 
 	if available.is_empty():
 		available = ["basic"]
+
+	remaining_budget = _append_elites_to_wave_plan(
+		wave_number,
+		available,
+		remaining_budget
+	)
 
 	while remaining_budget > 0:
 		var enemy_id := _weighted_enemy_choice(
@@ -1784,6 +1927,8 @@ func _prepare_wave_spawn_plan(wave_number: int) -> void:
 
 		var spawn_spec := definition.duplicate(true)
 		spawn_spec["enemy_id"] = enemy_id
+		spawn_spec["elite"] = false
+		spawn_spec["elite_trait"] = ""
 		wave_spawn_plan.append(spawn_spec)
 		remaining_budget -= cost
 
@@ -2317,6 +2462,26 @@ func _draw() -> void:
 			enemy_radius,
 			enemy_color
 		)
+
+		if bool(enemy.get("elite", false)):
+			draw_arc(
+				pos,
+				enemy_radius + 9.0,
+				0.0,
+				TAU,
+				32,
+				Color(1.0, 0.82, 0.34, 0.95),
+				2.0
+			)
+			draw_string(
+				world_font,
+				pos + Vector2(-18.0, -enemy_radius - 18.0),
+				"ELITE",
+				HORIZONTAL_ALIGNMENT_LEFT,
+				-1,
+				11,
+				Color(1.0, 0.86, 0.45, 0.92)
+			)
 
 		if int(enemy.get("uid", -1)) == locked_target_uid:
 			draw_arc(
