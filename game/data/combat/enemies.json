@@ -8,6 +8,7 @@
     "radius_multiplier": 1.0,
     "weight": 1.0,
     "priority": false,
+    "spawn_only": false,
     "color": "#f25561"
   },
   "runner": {
@@ -19,6 +20,7 @@
     "radius_multiplier": 0.82,
     "weight": 0.78,
     "priority": false,
+    "spawn_only": false,
     "color": "#ff965c"
   },
   "jammer": {
@@ -30,17 +32,60 @@
     "radius_multiplier": 1.18,
     "weight": 0.24,
     "priority": true,
+    "spawn_only": false,
+    "mechanic": "jam",
     "color": "#b17cff"
   },
   "brute": {
     "name": "Brute",
-    "unlock_wave": 6,
+    "unlock_wave": 5,
     "threat_cost": 4,
     "hp_multiplier": 2.35,
     "speed_multiplier": 0.72,
     "radius_multiplier": 1.35,
     "weight": 0.52,
     "priority": false,
+    "spawn_only": false,
     "color": "#cf6576"
+  },
+  "bulwark": {
+    "name": "Bulwark",
+    "unlock_wave": 6,
+    "threat_cost": 9,
+    "hp_multiplier": 1.85,
+    "speed_multiplier": 0.72,
+    "radius_multiplier": 1.28,
+    "weight": 0.18,
+    "priority": true,
+    "spawn_only": false,
+    "mechanic": "shield",
+    "color": "#65d9e8"
+  },
+  "caller": {
+    "name": "Caller",
+    "unlock_wave": 8,
+    "threat_cost": 12,
+    "hp_multiplier": 1.65,
+    "speed_multiplier": 0.78,
+    "radius_multiplier": 1.22,
+    "weight": 0.16,
+    "priority": true,
+    "spawn_only": false,
+    "mechanic": "summon",
+    "summon_interval": 4.5,
+    "summon_count": 2,
+    "color": "#e58bff"
+  },
+  "swarmer": {
+    "name": "Swarmer",
+    "unlock_wave": 99,
+    "threat_cost": 0,
+    "hp_multiplier": 0.42,
+    "speed_multiplier": 1.65,
+    "radius_multiplier": 0.62,
+    "weight": 0.0,
+    "priority": false,
+    "spawn_only": true,
+    "color": "#ffb36b"
   }
 }
