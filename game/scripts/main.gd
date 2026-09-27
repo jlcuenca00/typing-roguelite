@@ -10,15 +10,15 @@ const ENEMY_RADIUS := 10.0
 const BULLET_RADIUS := 3.0
 const DANGER_RADIUS := 42.0
 const BASE_MAX_HP := 100.0
-const SPAWN_MARGIN_MIN := 36.0
-const SPAWN_MARGIN_MAX := 82.0
+const SPAWN_MARGIN_MIN := 18.0
+const SPAWN_MARGIN_MAX := 42.0
 
 const WORD_BUFFER := 24
 const TYPING_LINE_WIDTH := 614.0
 const TYPING_LINE_HEIGHT := 36.0
 const TYPING_LEFT_X := 48.0
 
-const TOTAL_WAVES := 8
+const TOTAL_WAVES := 10
 # Each wave gets a fixed threat/XP budget. Enemy count is derived from which
 # archetypes the seeded wave plan spends that budget on. Player damage never
 # changes the budget or spawns extra enemies.
@@ -28,9 +28,11 @@ const WAVE_THREAT_BUDGETS := [
 	18,
 	28,
 	42,
-	72,
-	125,
-	230
+	68,
+	100,
+	145,
+	205,
+	285
 ]
 
 const MAX_TYPES_PER_WAVE := 3
@@ -42,6 +44,10 @@ const XP_GOAL_POWER := 0.80
 var rng := RandomNumberGenerator.new()
 var combat = CombatSystemScript.new()
 var enemy_definitions: Dictionary = {}
+var next_enemy_uid := 1
+var locked_target_uid := -1
+var priority_focus_uid := -1
+var priority_typed_index := 0
 
 # Typing state ----------------------------------------------------------------
 var word_pool: Array[String] = []
@@ -248,11 +254,19 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				_handle_upgrade_typing(upgrade_key)
 		return
 
+	if event.keycode == KEY_TAB:
+		_toggle_priority_focus()
+		return
+
 	if event.unicode == 0:
 		return
 
 	var typed := char(event.unicode).to_lower()
 	if typed.length() != 1 or typed < "a" or typed > "z":
+		return
+
+	if priority_focus_uid >= 0:
+		_handle_priority_typing(typed)
 		return
 
 	typed_characters += 1
@@ -286,6 +300,108 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		error_flash = 0.16
 
 	_update_typing_ui()
+
+
+# Priority enemies ------------------------------------------------------------
+
+func _get_enemy_index_by_uid(uid: int) -> int:
+	if uid < 0:
+		return -1
+
+	for i in range(enemies.size()):
+		if int(enemies[i].get("uid", -1)) == uid:
+			return i
+
+	return -1
+
+
+func _get_nearest_priority_index() -> int:
+	var center := get_viewport_rect().size * 0.5
+	var best_index := -1
+	var best_distance_sq := INF
+
+	for i in range(enemies.size()):
+		if not bool(enemies[i].get("priority", false)):
+			continue
+
+		var pos: Vector2 = enemies[i]["position"]
+		var distance_sq := center.distance_squared_to(pos)
+		if distance_sq < best_distance_sq:
+			best_distance_sq = distance_sq
+			best_index = i
+
+	return best_index
+
+
+func _toggle_priority_focus() -> void:
+	if priority_focus_uid >= 0:
+		priority_focus_uid = -1
+		priority_typed_index = 0
+		return
+
+	var index := _get_nearest_priority_index()
+	if index < 0:
+		return
+
+	priority_focus_uid = int(enemies[index].get("uid", -1))
+	priority_typed_index = 0
+
+
+func _handle_priority_typing(typed: String) -> void:
+	var index := _get_enemy_index_by_uid(priority_focus_uid)
+	if index < 0:
+		priority_focus_uid = -1
+		priority_typed_index = 0
+		return
+
+	typed_characters += 1
+	caret_idle_time = 0.0
+
+	var enemy := enemies[index]
+	var command := String(enemy.get("priority_word", ""))
+	if command.is_empty():
+		priority_focus_uid = -1
+		priority_typed_index = 0
+		return
+
+	var expected := command.substr(priority_typed_index, 1)
+
+	if typed == expected:
+		correct_keys += 1
+		streak += 1
+		best_streak = maxi(best_streak, streak)
+		priority_typed_index += 1
+		enemy["flash"] = 0.10
+		enemies[index] = enemy
+
+		if priority_typed_index >= command.length():
+			var position: Vector2 = enemy["position"]
+			_spawn_combat_text(
+				position + Vector2(0.0, -34.0),
+				"PURGED",
+				Color(0.72, 0.95, 1.0)
+			)
+			priority_focus_uid = -1
+			priority_typed_index = 0
+			_kill_enemy(index, position)
+	else:
+		incorrect_keys += 1
+		streak = 0
+		priority_typed_index = 0
+		error_flash = 0.16
+
+
+func _random_priority_word() -> String:
+	var candidates: Array[String] = []
+
+	for word in word_pool:
+		if word.length() >= 4 and word.length() <= 7:
+			candidates.append(word)
+
+	if candidates.is_empty():
+		return "signal"
+
+	return candidates[rng.randi_range(0, candidates.size() - 1)]
 
 
 # Typing stream ---------------------------------------------------------------
@@ -571,14 +687,21 @@ func _spawn_enemy() -> void:
 	var hp_value := base_hp * float(spec.get("hp_multiplier", 1.0))
 	var speed := base_speed * float(spec.get("speed_multiplier", 1.0))
 	var threat_cost := int(spec.get("threat_cost", 1))
+	var is_priority := bool(spec.get("priority", false))
+	var uid := next_enemy_uid
+	next_enemy_uid += 1
+	var priority_word := _random_priority_word() if is_priority else ""
 	var base_color := Color.from_string(
 		String(spec.get("color", "#f25561")),
 		Color(0.95, 0.33, 0.38)
 	)
 
 	enemies.append({
+		"uid": uid,
 		"position": position,
 		"enemy_id": String(spec.get("enemy_id", "basic")),
+		"priority": is_priority,
+		"priority_word": priority_word,
 		"speed": speed,
 		"hp": hp_value,
 		"max_hp": hp_value,
@@ -634,8 +757,15 @@ func _update_enemies(delta: float) -> void:
 				Color(1.0, 0.28, 0.34),
 				7
 			)
+			var removed_uid := int(enemy.get("uid", -1))
 			enemies.remove_at(i)
 			wave_resolved_count += 1
+
+			if removed_uid == locked_target_uid:
+				locked_target_uid = -1
+			if removed_uid == priority_focus_uid:
+				priority_focus_uid = -1
+				priority_typed_index = 0
 
 			if hp <= 0.0:
 				_end_run()
@@ -692,6 +822,34 @@ func _get_enemy_speed_multiplier(enemy: Dictionary) -> float:
 	return multiplier
 
 
+func _get_locked_target_index() -> int:
+	var existing := _get_enemy_index_by_uid(locked_target_uid)
+
+	if existing >= 0 and not bool(enemies[existing].get("priority", false)):
+		return existing
+
+	locked_target_uid = -1
+
+	var center := get_viewport_rect().size * 0.5
+	var nearest_index := -1
+	var nearest_distance_sq := INF
+
+	for i in range(enemies.size()):
+		if bool(enemies[i].get("priority", false)):
+			continue
+
+		var enemy_pos: Vector2 = enemies[i]["position"]
+		var distance_sq := center.distance_squared_to(enemy_pos)
+		if distance_sq < nearest_distance_sq:
+			nearest_distance_sq = distance_sq
+			nearest_index = i
+
+	if nearest_index >= 0:
+		locked_target_uid = int(enemies[nearest_index].get("uid", -1))
+
+	return nearest_index
+
+
 func _fire_at_nearest_enemy(
 	damage: float,
 	spread: float,
@@ -704,18 +862,12 @@ func _fire_at_nearest_enemy(
 	if enemies.is_empty():
 		return
 
+	var target_index := _get_locked_target_index()
+	if target_index < 0:
+		return
+
 	var center := get_viewport_rect().size * 0.5
-	var nearest_index := 0
-	var nearest_distance_sq := INF
-
-	for i in range(enemies.size()):
-		var enemy_pos: Vector2 = enemies[i]["position"]
-		var distance_sq := center.distance_squared_to(enemy_pos)
-		if distance_sq < nearest_distance_sq:
-			nearest_distance_sq = distance_sq
-			nearest_index = i
-
-	var target: Vector2 = enemies[nearest_index]["position"]
+	var target: Vector2 = enemies[target_index]["position"]
 	var direction := (target - center).normalized().rotated(spread)
 
 	bullets.append({
@@ -726,6 +878,7 @@ func _fire_at_nearest_enemy(
 		"tags": tags.duplicate(),
 		"effects": effects.duplicate(true),
 		"weapon_id": weapon_id,
+		"target_uid": locked_target_uid,
 		"color": projectile_color
 	})
 
@@ -738,6 +891,9 @@ func _update_bullets(delta: float) -> void:
 		var hit := false
 
 		for enemy_index in range(enemies.size() - 1, -1, -1):
+			if bool(enemies[enemy_index].get("priority", false)):
+				continue
+
 			var enemy_pos: Vector2 = enemies[enemy_index]["position"]
 
 			var enemy_radius := float(
@@ -958,8 +1114,16 @@ func _kill_enemy(index: int, position: Vector2) -> void:
 	if index < 0 or index >= enemies.size():
 		return
 
+	var enemy_uid := int(enemies[index].get("uid", -1))
 	var xp_value := int(enemies[index].get("xp_value", 1))
 	enemies.remove_at(index)
+
+	if enemy_uid == locked_target_uid:
+		locked_target_uid = -1
+	if enemy_uid == priority_focus_uid:
+		priority_focus_uid = -1
+		priority_typed_index = 0
+
 	kills += 1
 	wave_resolved_count += 1
 	_spawn_death_particles(position)
@@ -1353,25 +1517,32 @@ func _wave_threat_budget(wave_number: int) -> int:
 
 
 func _available_enemy_ids(wave_number: int) -> Array[String]:
-	var available: Array[Dictionary] = []
+	var specials: Array[Dictionary] = []
 
 	for enemy_id in enemy_definitions.keys():
+		if String(enemy_id) == "basic":
+			continue
+
 		var definition: Dictionary = enemy_definitions[enemy_id]
 		var unlock_wave := int(definition.get("unlock_wave", 1))
 		if unlock_wave <= wave_number:
-			available.append({
+			specials.append({
 				"id": String(enemy_id),
 				"unlock_wave": unlock_wave
 			})
 
-	available.sort_custom(
+	specials.sort_custom(
 		func(a: Dictionary, b: Dictionary) -> bool:
 			return int(a["unlock_wave"]) > int(b["unlock_wave"])
 	)
 
 	var result: Array[String] = []
-	for i in range(mini(MAX_TYPES_PER_WAVE, available.size())):
-		result.append(String(available[i]["id"]))
+	if enemy_definitions.has("basic"):
+		result.append("basic")
+
+	var special_slots := maxi(MAX_TYPES_PER_WAVE - result.size(), 0)
+	for i in range(mini(special_slots, specials.size())):
+		result.append(String(specials[i]["id"]))
 
 	return result
 
@@ -1524,6 +1695,9 @@ func _start_next_wave() -> void:
 
 	level_up_open = false
 	wave_continue_waiting = false
+	locked_target_uid = -1
+	priority_focus_uid = -1
+	priority_typed_index = 0
 	upgrade_overlay.visible = false
 	wave_intermission = false
 	current_wave += 1
@@ -1927,6 +2101,8 @@ func _draw() -> void:
 		1.0
 	)
 
+	var world_font := ThemeDB.fallback_font
+
 	for enemy in enemies:
 		var pos: Vector2 = enemy["position"]
 		var enemy_color := _get_enemy_draw_color(enemy)
@@ -1968,6 +2144,61 @@ func _draw() -> void:
 				Color(1.0, 0.85, 0.30, 0.95),
 				2.0
 			)
+
+		if bool(enemy.get("priority", false)):
+			var uid := int(enemy.get("uid", -1))
+			var command := String(enemy.get("priority_word", "")).to_upper()
+			var focused := uid == priority_focus_uid
+			var ring_color := Color(0.72, 0.52, 1.0, 0.95) if not focused else Color(0.55, 0.95, 1.0, 1.0)
+
+			draw_arc(
+				pos,
+				enemy_radius + 10.0,
+				0.0,
+				TAU,
+				32,
+				ring_color,
+				2.0
+			)
+
+			var word_pos := pos + Vector2(-enemy_radius - 16.0, -enemy_radius - 18.0)
+			if focused:
+				var done := command.substr(0, priority_typed_index)
+				var remaining := command.substr(priority_typed_index)
+				draw_string(
+					world_font,
+					word_pos,
+					done,
+					HORIZONTAL_ALIGNMENT_LEFT,
+					-1,
+					14,
+					Color(0.42, 0.95, 0.72)
+				)
+				var done_width := world_font.get_string_size(
+					done,
+					HORIZONTAL_ALIGNMENT_LEFT,
+					-1,
+					14
+				).x
+				draw_string(
+					world_font,
+					word_pos + Vector2(done_width, 0.0),
+					remaining,
+					HORIZONTAL_ALIGNMENT_LEFT,
+					-1,
+					14,
+					Color(0.94, 0.97, 1.0)
+				)
+			else:
+				draw_string(
+					world_font,
+					word_pos,
+					command,
+					HORIZONTAL_ALIGNMENT_LEFT,
+					-1,
+					14,
+					Color(0.78, 0.72, 1.0)
+				)
 
 	for bullet in bullets:
 		var pos: Vector2 = bullet["position"]
