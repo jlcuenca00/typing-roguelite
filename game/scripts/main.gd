@@ -606,9 +606,11 @@ func _random_priority_word() -> String:
 
 	for enemy in enemies:
 		if bool(enemy.get("priority", false)):
-			existing.append(
-				String(enemy.get("priority_word", "")).to_lower()
-			)
+			var used_word := String(
+				enemy.get("priority_word", "")
+			).to_lower()
+			if not used_word.is_empty():
+				existing.append(used_word)
 
 	var candidates: Array[String] = []
 
