@@ -1,0 +1,32 @@
+{
+  "basic": {
+    "name": "Basic",
+    "unlock_wave": 1,
+    "threat_cost": 1,
+    "hp_multiplier": 1.0,
+    "speed_multiplier": 1.0,
+    "radius_multiplier": 1.0,
+    "weight": 1.0,
+    "color": "#f25561"
+  },
+  "runner": {
+    "name": "Runner",
+    "unlock_wave": 3,
+    "threat_cost": 2,
+    "hp_multiplier": 0.72,
+    "speed_multiplier": 1.42,
+    "radius_multiplier": 0.82,
+    "weight": 0.78,
+    "color": "#ff965c"
+  },
+  "brute": {
+    "name": "Brute",
+    "unlock_wave": 5,
+    "threat_cost": 4,
+    "hp_multiplier": 2.35,
+    "speed_multiplier": 0.72,
+    "radius_multiplier": 1.35,
+    "weight": 0.52,
+    "color": "#cf6576"
+  }
+}
