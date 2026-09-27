@@ -78,6 +78,23 @@
     "summon_count": 2,
     "color": "#e58bff"
   },
+  "overseer": {
+    "name": "Overseer",
+    "unlock_wave": 10,
+    "threat_cost": 80,
+    "hp_multiplier": 7.0,
+    "speed_multiplier": 0.46,
+    "radius_multiplier": 2.15,
+    "weight": 0.0,
+    "priority": false,
+    "spawn_only": true,
+    "boss": true,
+    "mechanic": "phase_lock",
+    "boss_stop_radius": 145.0,
+    "boss_attack_interval": 3.2,
+    "boss_attack_damage": 8.0,
+    "color": "#ffcf70"
+  },
   "swarmer": {
     "name": "Swarmer",
     "unlock_wave": 99,
