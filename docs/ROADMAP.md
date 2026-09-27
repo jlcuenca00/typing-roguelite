@@ -58,6 +58,7 @@
 - [ ] Archive hooks.
 
 ## Phase 6 - Prototype Review
+- [x] Add debug-only test controls for healing, god mode, wave clearing, and restart.
 - [ ] Profile enemy/projectile performance.
 - [ ] Playtest typing feel at different WPM ranges.
 - [ ] Evaluate readability under late-run chaos.
