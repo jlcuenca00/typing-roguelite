@@ -136,3 +136,24 @@ Keep this log short. Record decisions, experiments, what worked, what failed, an
 - Evaluate whether one-active-priority is too forgiving in Waves 9-10.
 - Tune Overseer pulse timing, HP, and command cadence.
 - Then move into full 10-minute pacing and late-chaos/performance tuning.
+
+
+### 2026-09-27 — Late-wave density and chaos pass
+
+**Changed**
+- Spawn cadence now accelerates across the 10-wave run without changing wave completion rules.
+- Waves 7-8 can spawn small irregular two-enemy clumps; Waves 9-10 can spawn two- or three-enemy clumps.
+- Spawn timing gains slight randomness and each wave naturally compresses toward a denser back half.
+- Added per-wave active-enemy safety caps that rise from 12 early to 140 on Wave 10.
+- Boss spawning now waits for the authored Wave 10 horde, Caller leftovers, and travelling XP to clear before entering.
+- Added transient feedback caps for particles, damage numbers, and reaction waves; XP-carrying particles are never discarded.
+- Debug HUD now shows live enemy, bullet, and particle counts to help spot performance problems during the chaos test.
+
+**Why**
+- Late-game payoff should become visibly denser and less metronomic without making enemy count depend on player damage.
+- We need enough chaos to expose performance/readability problems before committing to final art or permanent progression.
+
+**Next**
+- Full 10-wave playtest.
+- Record approximate run duration and peak active-enemy/particle counts from the debug panel.
+- Tune Wave 8-10 density, boss pressure, and final run duration from actual playtest data.
