@@ -94,3 +94,23 @@ Keep this log short. Record decisions, experiments, what worked, what failed, an
 - Playtest Waves 4-10 with priority enemies + elites together.
 - Decide whether Regenerator feels threatening or annoying.
 - Build the boss encounter architecture after this combined threat test.
+
+
+### 2026-09-27 — Separate testability from real balance
+
+**Changed**
+- Added debug-build-only prototype controls.
+- F1 fully heals and can revive a failed test run.
+- F2 toggles god mode.
+- F3 clears the remaining authored wave and awards the XP still available from unresolved planned enemies.
+- F4 restarts the run.
+- Added a small debug hint that is only visible in debug builds.
+
+**Why**
+- Midgame is intentionally becoming dangerous, but that should not block testing Waves 7-10, priority enemies, elites, and later bosses.
+- Development conveniences should not force us to weaken the actual fresh-profile balance.
+
+**Next**
+- Use the controls only when needed to reach untested systems.
+- Play one normal run first, then use F1/F2/F3 if needed to inspect late-wave behavior.
+- After this combined threat test, build the boss encounter architecture.
