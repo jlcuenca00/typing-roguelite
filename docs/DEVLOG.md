@@ -114,3 +114,25 @@ Keep this log short. Record decisions, experiments, what worked, what failed, an
 - Use the controls only when needed to reach untested systems.
 - Play one normal run first, then use F1/F2/F3 if needed to inspect late-wave behavior.
 - After this combined threat test, build the boss encounter architecture.
+
+
+### 2026-09-27 — Priority pacing + first boss architecture
+
+**Changed**
+- Priority enemies are now distributed across the full wave instead of relying on a pure shuffle.
+- Only one priority enemy can be active at a time; normal enemies are pulled forward while the next priority threat waits.
+- Added an always-visible-in-debug-build controls panel showing F1-F4 test shortcuts.
+- Added the Wave 10 Overseer boss prototype.
+- Overseer enters after the Wave 10 horde, stops outside the player's danger ring, and periodically emits damaging pulses.
+- At 66% and 33% HP, Overseer locks normal damage and exposes a priority command. TAB + typing the command breaches the phase and resumes normal fire.
+- Boss phase gates clamp at their thresholds so high late-game damage cannot skip the typing interaction.
+
+**Why**
+- Priority enemies should create short attention spikes throughout a wave, not dump several mandatory commands on the player at once.
+- The boss needs to test the game's core identity: normal typing damage interrupted by deliberate direct-command moments.
+
+**Next**
+- Playtest the full 10-wave run using debug controls when necessary.
+- Evaluate whether one-active-priority is too forgiving in Waves 9-10.
+- Tune Overseer pulse timing, HP, and command cadence.
+- Then move into full 10-minute pacing and late-chaos/performance tuning.
