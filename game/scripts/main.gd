@@ -44,6 +44,10 @@ const ELITE_RADIUS_MULTIPLIER := 1.16
 const ELITE_REGEN_DELAY := 1.35
 const ELITE_REGEN_RATE := 0.055
 
+const BOSS_WAVE := 10
+const BOSS_ID := "overseer"
+const BOSS_PHASE_THRESHOLDS := [0.66, 0.33]
+
 const XP_GOAL_BASE := 8.0
 const XP_GOAL_GROWTH := 1.45
 const XP_GOAL_POWER := 0.80
@@ -146,7 +150,8 @@ var dev_god_mode := false
 @onready var xp_count_label: Label = $HUD/XPPanel/XPCount
 @onready var level_label: Label = $HUD/XPPanel/LevelLabel
 @onready var wave_label: Label = $HUD/WaveLabel
-@onready var dev_label: Label = $HUD/DevLabel
+@onready var dev_panel: ColorRect = $HUD/DevPanel
+@onready var dev_label: Label = $HUD/DevPanel/DevLabel
 
 @onready var upgrade_overlay: ColorRect = $HUD/UpgradeOverlay
 @onready var upgrade_title: Label = $HUD/UpgradeOverlay/Title
@@ -183,7 +188,7 @@ func _ready() -> void:
 	_update_xp_ui()
 	_update_wave_ui()
 	_update_stats()
-	dev_label.visible = OS.is_debug_build()
+	dev_panel.visible = OS.is_debug_build()
 	_update_dev_hud()
 	queue_redraw()
 
@@ -362,7 +367,7 @@ func _update_dev_hud() -> void:
 	if not is_instance_valid(dev_label):
 		return
 
-	dev_label.text = "DEV  F1 HEAL   F2 GOD %s   F3 CLEAR WAVE   F4 RESTART" % [
+	dev_label.text = "DEV CONTROLS\nF1  Heal / Revive\nF2  God Mode: %s\nF3  Clear Wave\nF4  Restart" % [
 		"ON" if dev_god_mode else "OFF"
 	]
 
@@ -517,14 +522,28 @@ func _handle_priority_typing(typed: String) -> void:
 
 		if command == priority_typed_prefix:
 			var position: Vector2 = enemy["position"]
-			_spawn_combat_text(
-				position + Vector2(0.0, -34.0),
-				"PURGED",
-				Color(0.72, 0.95, 1.0)
-			)
 			priority_mode_active = false
 			priority_typed_prefix = ""
-			_kill_enemy(index, position)
+
+			if bool(enemy.get("boss", false)) and bool(enemy.get("boss_shielded", false)):
+				enemy["boss_shielded"] = false
+				enemy["priority"] = false
+				enemy["priority_word"] = ""
+				enemy["flash"] = 0.16
+				enemies[index] = enemy
+				_spawn_combat_text(
+					position + Vector2(0.0, -42.0),
+					"BREACH",
+					Color(0.70, 0.95, 1.0)
+				)
+				locked_target_uid = int(enemy.get("uid", -1))
+			else:
+				_spawn_combat_text(
+					position + Vector2(0.0, -34.0),
+					"PURGED",
+					Color(0.72, 0.95, 1.0)
+				)
+				_kill_enemy(index, position)
 			return
 
 
@@ -872,6 +891,7 @@ func _spawn_enemy() -> void:
 	var base_speed := rng.randf_range(38.0, 62.0) + wave_scale * 2.2 + minf(elapsed * 0.06, 12.0)
 	var base_hp := 44.0 + wave_scale * 4.5 + minf(elapsed * 0.05, 14.0)
 	var is_elite := bool(spec.get("elite", false))
+	var is_boss := bool(spec.get("boss", false))
 	var radius := ENEMY_RADIUS * float(spec.get("radius_multiplier", 1.0))
 	var hp_value := base_hp * float(spec.get("hp_multiplier", 1.0))
 	var speed := base_speed * float(spec.get("speed_multiplier", 1.0))
@@ -894,6 +914,13 @@ func _spawn_enemy() -> void:
 		"uid": uid,
 		"position": position,
 		"enemy_id": String(spec.get("enemy_id", "basic")),
+		"boss": is_boss,
+		"boss_phase": 0,
+		"boss_shielded": false,
+		"boss_stop_radius": float(spec.get("boss_stop_radius", 145.0)),
+		"boss_attack_interval": float(spec.get("boss_attack_interval", 3.2)),
+		"boss_attack_damage": float(spec.get("boss_attack_damage", 8.0)),
+		"boss_attack_timer": float(spec.get("boss_attack_interval", 3.2)),
 		"elite": is_elite,
 		"elite_trait": String(spec.get("elite_trait", "")),
 		"elite_regen_delay": float(spec.get("elite_regen_delay", ELITE_REGEN_DELAY)),
@@ -928,6 +955,58 @@ func _update_enemies(delta: float) -> void:
 		var enemy := enemies[i]
 		var pos: Vector2 = enemy["position"]
 		var knockback: Vector2 = enemy["knockback"]
+
+		if bool(enemy.get("boss", false)):
+			var boss_ratio := clampf(
+				float(enemy["hp"]) / maxf(float(enemy["max_hp"]), 1.0),
+				0.0,
+				1.0
+			)
+			var boss_phase := int(enemy.get("boss_phase", 0))
+
+			if (
+				not bool(enemy.get("boss_shielded", false))
+				and boss_phase < BOSS_PHASE_THRESHOLDS.size()
+				and boss_ratio <= float(BOSS_PHASE_THRESHOLDS[boss_phase])
+			):
+				enemy["boss_phase"] = boss_phase + 1
+				enemy["boss_shielded"] = true
+				enemy["priority"] = true
+				enemy["priority_word"] = _random_priority_word()
+				enemy["flash"] = 0.16
+				locked_target_uid = -1
+				_spawn_combat_text(
+					pos + Vector2(0.0, -48.0),
+					"LOCKED",
+					Color(0.64, 0.82, 1.0)
+				)
+
+			if get_viewport_rect().has_point(pos):
+				var boss_attack_timer := float(
+					enemy.get("boss_attack_timer", 3.2)
+				) - delta
+
+				if boss_attack_timer <= 0.0:
+					if not dev_god_mode:
+						hp = maxf(
+							0.0,
+							hp - float(enemy.get("boss_attack_damage", 8.0))
+						)
+					_spawn_reaction_wave(
+						pos,
+						150.0,
+						Color(1.0, 0.72, 0.30, 0.75)
+					)
+					_spawn_combat_text(
+						pos + Vector2(0.0, -38.0),
+						"PULSE",
+						Color(1.0, 0.80, 0.42)
+					)
+					boss_attack_timer = float(
+						enemy.get("boss_attack_interval", 3.2)
+					)
+
+				enemy["boss_attack_timer"] = boss_attack_timer
 
 		if (
 			bool(enemy.get("elite", false))
@@ -1007,8 +1086,17 @@ func _update_enemies(delta: float) -> void:
 			650.0 * delta
 		)
 
-		if distance > DANGER_RADIUS:
+		var stop_radius := (
+			float(enemy.get("boss_stop_radius", 145.0))
+			if bool(enemy.get("boss", false))
+			else DANGER_RADIUS
+		)
+
+		if distance > stop_radius:
 			pos += to_player.normalized() * float(enemy["speed"]) * speed_multiplier * delta
+			enemy["position"] = pos
+			enemies[i] = enemy
+		elif bool(enemy.get("boss", false)):
 			enemy["position"] = pos
 			enemies[i] = enemy
 		else:
@@ -1061,6 +1149,13 @@ func _spawn_summoned_swarmers(origin: Vector2, count: int) -> void:
 			"uid": uid,
 			"position": spawn_pos,
 			"enemy_id": "swarmer",
+			"boss": false,
+			"boss_phase": 0,
+			"boss_shielded": false,
+			"boss_stop_radius": 0.0,
+			"boss_attack_interval": 0.0,
+			"boss_attack_damage": 0.0,
+			"boss_attack_timer": 0.0,
 			"elite": false,
 			"elite_trait": "",
 			"elite_regen_delay": 0.0,
@@ -2002,6 +2097,57 @@ func _append_elites_to_wave_plan(
 	return remaining_budget
 
 
+func _spread_priority_spawns() -> void:
+	var priorities: Array[Dictionary] = []
+	var others: Array[Dictionary] = []
+
+	for spec in wave_spawn_plan:
+		if bool(spec.get("priority", false)):
+			priorities.append(spec)
+		else:
+			others.append(spec)
+
+	others.shuffle()
+	priorities.shuffle()
+	wave_spawn_plan = others
+
+	if priorities.is_empty():
+		return
+
+	var final_count := others.size() + priorities.size()
+
+	for i in range(priorities.size()):
+		var ratio := float(i + 1) / float(priorities.size() + 1)
+		ratio += rng.randf_range(-0.055, 0.055)
+		ratio = clampf(ratio, 0.16, 0.88)
+
+		var slot := int(round(ratio * float(final_count - 1)))
+		slot = clampi(slot, 1, wave_spawn_plan.size())
+		wave_spawn_plan.insert(slot, priorities[i])
+
+
+func _append_boss_to_wave_plan(
+	wave_number: int,
+	remaining_budget: int
+) -> int:
+	if wave_number != BOSS_WAVE or not enemy_definitions.has(BOSS_ID):
+		return remaining_budget
+
+	var definition: Dictionary = enemy_definitions[BOSS_ID]
+	var cost := maxi(int(definition.get("threat_cost", 80)), 1)
+
+	if cost > remaining_budget:
+		return remaining_budget
+
+	var spec := definition.duplicate(true)
+	spec["enemy_id"] = BOSS_ID
+	spec["elite"] = false
+	spec["elite_trait"] = ""
+	wave_spawn_plan.append(spec)
+
+	return remaining_budget - cost
+
+
 func _prepare_wave_spawn_plan(wave_number: int) -> void:
 	wave_spawn_plan.clear()
 
@@ -2010,6 +2156,17 @@ func _prepare_wave_spawn_plan(wave_number: int) -> void:
 
 	if available.is_empty():
 		available = ["basic"]
+
+	var boss_spec: Dictionary = {}
+	if wave_number == BOSS_WAVE and enemy_definitions.has(BOSS_ID):
+		var boss_definition: Dictionary = enemy_definitions[BOSS_ID]
+		var boss_cost := maxi(int(boss_definition.get("threat_cost", 80)), 1)
+		if boss_cost <= remaining_budget:
+			boss_spec = boss_definition.duplicate(true)
+			boss_spec["enemy_id"] = BOSS_ID
+			boss_spec["elite"] = false
+			boss_spec["elite_trait"] = ""
+			remaining_budget -= boss_cost
 
 	remaining_budget = _append_elites_to_wave_plan(
 		wave_number,
@@ -2043,7 +2200,13 @@ func _prepare_wave_spawn_plan(wave_number: int) -> void:
 		wave_spawn_plan.append(spawn_spec)
 		remaining_budget -= cost
 
-	wave_spawn_plan.shuffle()
+	_spread_priority_spawns()
+
+	# The boss is intentionally appended after the distributed horde instead of
+	# participating in the shuffle, so Wave 10 builds toward a final encounter.
+	if not boss_spec.is_empty():
+		wave_spawn_plan.append(boss_spec)
+
 	wave_spawned_count = 0
 	wave_resolved_count = 0
 
@@ -2573,6 +2736,55 @@ func _draw() -> void:
 			enemy_radius,
 			enemy_color
 		)
+
+		if bool(enemy.get("boss", false)):
+			draw_arc(
+				pos,
+				enemy_radius + 13.0,
+				0.0,
+				TAU,
+				48,
+				Color(1.0, 0.78, 0.32, 0.96),
+				3.0
+			)
+
+			var boss_bar_width := 88.0
+			var boss_bar_height := 5.0
+			var boss_ratio := clampf(
+				float(enemy["hp"]) / maxf(float(enemy["max_hp"]), 1.0),
+				0.0,
+				1.0
+			)
+			var boss_bar_pos := pos + Vector2(
+				-boss_bar_width * 0.5,
+				-enemy_radius - 30.0
+			)
+			draw_rect(
+				Rect2(
+					boss_bar_pos,
+					Vector2(boss_bar_width, boss_bar_height)
+				),
+				Color(0.07, 0.08, 0.10, 0.96)
+			)
+			draw_rect(
+				Rect2(
+					boss_bar_pos,
+					Vector2(
+						boss_bar_width * boss_ratio,
+						boss_bar_height
+					)
+				),
+				Color(1.0, 0.72, 0.30, 0.98)
+			)
+			draw_string(
+				world_font,
+				pos + Vector2(-34.0, -enemy_radius - 36.0),
+				"OVERSEER",
+				HORIZONTAL_ALIGNMENT_LEFT,
+				-1,
+				12,
+				Color(1.0, 0.84, 0.52, 0.95)
+			)
 
 		if bool(enemy.get("elite", false)):
 			draw_arc(
