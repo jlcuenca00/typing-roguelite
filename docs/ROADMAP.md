@@ -8,11 +8,12 @@
 
 ## Phase 1 - Feel
 - [ ] Tune typing responsiveness.
-- [ ] Add better current/completed/upcoming word styling.
-- [ ] Add hit-stop / hit flash / particles.
+- [x] Add better current/completed/upcoming word styling.
+- [x] Add hit flash / particles.
 - [ ] Add satisfying typing and weapon audio.
-- [ ] Tune enemy approach speed and spawn pressure.
-- [ ] Add screen shake only for high-impact effects.
+- [x] Tune enemy approach speed and offscreen spawn pressure.
+- [x] Add sticky auto-targeting so normal fire does not randomly switch targets.
+- [x] Add screen shake only for high-impact effects.
 
 ## Phase 2 - Buildcraft
 - [x] Separate weapons, triggers, and effects.
@@ -23,7 +24,7 @@
 - [x] Add upgrade selection screen.
 
 ## Phase 2.5 - Run Loop
-- [x] Add prototype wave structure; upgrades only resolve between waves.
+- [x] Add prototype 10-wave structure; upgrades only resolve between waves.
 - [x] Require an explicit typed READY between waves; never auto-start the next wave.
 - [x] Generate waves from fixed threat budgets; enemy count emerges from enemy costs.
 - [x] Add data-driven enemy archetypes and wave roster unlocks.
@@ -35,8 +36,10 @@
 - [x] Type upgrade command words instead of number keys.
 
 ## Phase 3 - Threats
-- [ ] Add 3 priority enemies.
-- [ ] Add priority typing interruption/resume.
+- [x] Add first priority enemy prototype (Jammer).
+- [ ] Add 2 more priority enemies.
+- [x] Add priority typing interruption/resume.
+- [ ] Give priority enemies distinct battlefield mechanics beyond direct typing.
 - [ ] Add elite.
 - [ ] Add boss.
 - [ ] Add 10-minute run pacing.
