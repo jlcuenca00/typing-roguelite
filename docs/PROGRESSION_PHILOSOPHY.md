@@ -22,6 +22,8 @@ Fast and accurate typing is allowed to be an advantage. We should not dynamicall
 
 Difficulty should come from authored run pacing, enemy combinations, higher Depth levels, bosses, and limited early resources.
 
+Movement speed is treated primarily as an archetype identity rather than a universal wave-scaling stat. Later waves should become harder mainly because there are more threats, denser arrivals, stronger combinations, and more dangerous specialist enemies—not because every Basic enemy quietly becomes much faster.
+
 ## Three Progression Layers
 
 ### 1. Run Power
