@@ -53,6 +53,9 @@ const NORMAL_KNOCKBACK_MULTIPLIER := 0.45
 const ELITE_KNOCKBACK_MULTIPLIER := 0.28
 const BOSS_KNOCKBACK_MULTIPLIER := 0.04
 
+const PRIORITY_ACTIVATION_INSET := 34.0
+const PRIORITY_CAST_DURATION := 0.55
+
 const ELITE_START_WAVE := 7
 const ELITE_THREAT_SURCHARGE := 6
 const ELITE_HP_MULTIPLIER := 1.55
@@ -598,6 +601,8 @@ func _handle_priority_typing(typed: String) -> void:
 			if bool(enemy.get("boss", false)) and bool(enemy.get("boss_shielded", false)):
 				enemy["boss_shielded"] = false
 				enemy["priority"] = false
+				enemy["priority_active"] = false
+				enemy["priority_casting"] = false
 				enemy["priority_word"] = ""
 				enemy["flash"] = 0.16
 				enemies[index] = enemy
@@ -657,6 +662,8 @@ func _get_visible_priority_mechanic(mechanic_id: String) -> Dictionary:
 	for enemy in enemies:
 		if not bool(enemy.get("priority", false)):
 			continue
+		if not bool(enemy.get("priority_active", false)):
+			continue
 		if String(enemy.get("mechanic", "")) != mechanic_id:
 			continue
 
@@ -669,6 +676,30 @@ func _get_visible_priority_mechanic(mechanic_id: String) -> Dictionary:
 
 func _has_visible_priority_mechanic(mechanic_id: String) -> bool:
 	return not _get_visible_priority_mechanic(mechanic_id).is_empty()
+
+
+func _priority_activation_rect() -> Rect2:
+	var viewport_size := get_viewport_rect().size
+	var inset := PRIORITY_ACTIVATION_INSET
+	return Rect2(
+		Vector2(inset, inset),
+		Vector2(
+			maxf(viewport_size.x - inset * 2.0, 1.0),
+			maxf(viewport_size.y - inset * 2.0, 1.0)
+		)
+	)
+
+
+func _priority_cast_label(mechanic_id: String, active: bool) -> String:
+	match mechanic_id:
+		"jam":
+			return "JAMMED" if active else "JAMMING"
+		"shield":
+			return "SHIELD UP" if active else "SHIELDING"
+		"summon":
+			return "CALLING" if active else "CHANNELING"
+		_:
+			return "ACTIVE" if active else "CASTING"
 
 
 # Typing stream ---------------------------------------------------------------
@@ -1051,7 +1082,10 @@ func _spawn_enemy() -> void:
 			)
 
 	var wave_scale := float(current_wave - 1)
-	var base_speed := rng.randf_range(38.0, 62.0) + wave_scale * 2.2 + minf(elapsed * 0.06, 12.0)
+	# Movement speed is now primarily an archetype property. Later-wave pressure
+	# comes from density, composition, elites, and priority mechanics rather than
+	# globally accelerating every enemy.
+	var base_speed := rng.randf_range(40.0, 60.0)
 	var base_hp := 44.0 + wave_scale * 4.5 + minf(elapsed * 0.05, 14.0)
 	var is_elite := bool(spec.get("elite", false))
 	var is_boss := bool(spec.get("boss", false))
@@ -1092,6 +1126,9 @@ func _spawn_enemy() -> void:
 		"elite_regen_fx_timer": 0.0,
 		"priority": is_priority,
 		"priority_word": priority_word,
+		"priority_active": false,
+		"priority_casting": false,
+		"priority_cast_timer": PRIORITY_CAST_DURATION,
 		"mechanic": String(spec.get("mechanic", "")),
 		"player_damage_multiplier": float(spec.get("player_damage_multiplier", 1.0)),
 		"protected_damage_multiplier": float(spec.get("protected_damage_multiplier", 1.0)),
@@ -1138,6 +1175,8 @@ func _activate_boss_lock_if_needed(
 	enemy["boss_phase"] = phase + 1
 	enemy["boss_shielded"] = true
 	enemy["priority"] = true
+	enemy["priority_active"] = true
+	enemy["priority_casting"] = false
 	enemy["priority_word"] = _random_priority_word()
 	enemy["flash"] = 0.16
 	locked_target_uid = -1
@@ -1157,6 +1196,58 @@ func _update_enemies(delta: float) -> void:
 		var enemy := enemies[i]
 		var pos: Vector2 = enemy["position"]
 		var knockback: Vector2 = enemy["knockback"]
+		var priority_cast_pauses_movement := false
+
+		if (
+			bool(enemy.get("priority", false))
+			and not bool(enemy.get("boss", false))
+			and not bool(enemy.get("priority_active", false))
+		):
+			var is_casting := bool(enemy.get("priority_casting", false))
+
+			if (
+				not is_casting
+				and _priority_activation_rect().has_point(pos)
+			):
+				is_casting = true
+				enemy["priority_casting"] = true
+				enemy["priority_cast_timer"] = PRIORITY_CAST_DURATION
+				enemy["knockback"] = Vector2.ZERO
+				knockback = Vector2.ZERO
+				_spawn_combat_text(
+					pos + Vector2(0.0, -36.0),
+					_priority_cast_label(
+						String(enemy.get("mechanic", "")),
+						false
+					),
+					Color(0.72, 0.66, 1.0)
+				)
+
+			if is_casting:
+				priority_cast_pauses_movement = true
+				var cast_timer := float(
+					enemy.get("priority_cast_timer", PRIORITY_CAST_DURATION)
+				) - delta
+				enemy["priority_cast_timer"] = cast_timer
+
+				if cast_timer <= 0.0:
+					enemy["priority_casting"] = false
+					enemy["priority_active"] = true
+					priority_cast_pauses_movement = false
+					enemy["flash"] = 0.14
+					_spawn_impact_particles(
+						pos,
+						Color(0.68, 0.56, 1.0),
+						8
+					)
+					_spawn_combat_text(
+						pos + Vector2(0.0, -36.0),
+						_priority_cast_label(
+							String(enemy.get("mechanic", "")),
+							true
+						),
+						Color(0.76, 0.92, 1.0)
+					)
 
 		if bool(enemy.get("boss", false)):
 			if get_viewport_rect().has_point(pos):
@@ -1228,6 +1319,7 @@ func _update_enemies(delta: float) -> void:
 
 		if (
 			String(enemy.get("mechanic", "")) == "summon"
+			and bool(enemy.get("priority_active", false))
 			and get_viewport_rect().has_point(pos)
 		):
 			var ability_timer := float(enemy.get("ability_timer", 0.0)) - delta
@@ -1280,7 +1372,10 @@ func _update_enemies(delta: float) -> void:
 			else DANGER_RADIUS
 		)
 
-		if distance > stop_radius:
+		if priority_cast_pauses_movement:
+			enemy["position"] = pos
+			enemies[i] = enemy
+		elif distance > stop_radius:
 			pos += to_player.normalized() * float(enemy["speed"]) * speed_multiplier * delta
 			enemy["position"] = pos
 			enemies[i] = enemy
@@ -1327,7 +1422,7 @@ func _spawn_summoned_swarmers(origin: Vector2, count: int) -> void:
 		var uid := next_enemy_uid
 		next_enemy_uid += 1
 		var base_hp := 34.0 + wave_scale * 3.0
-		var base_speed := rng.randf_range(48.0, 62.0) + wave_scale * 1.8
+		var base_speed := rng.randf_range(48.0, 62.0)
 		var color := Color.from_string(
 			String(definition.get("color", "#ffb36b")),
 			Color(1.0, 0.70, 0.42)
@@ -1352,6 +1447,9 @@ func _spawn_summoned_swarmers(origin: Vector2, count: int) -> void:
 			"elite_regen_fx_timer": 0.0,
 			"priority": false,
 			"priority_word": "",
+			"priority_active": false,
+			"priority_casting": false,
+			"priority_cast_timer": 0.0,
 			"mechanic": "",
 			"player_damage_multiplier": 1.0,
 			"protected_damage_multiplier": 1.0,
@@ -3163,6 +3261,11 @@ func _draw() -> void:
 			)
 
 			var ring_color := Color(0.72, 0.52, 1.0, 0.95)
+			if bool(enemy.get("priority_casting", false)):
+				ring_color = Color(0.78, 0.72, 1.0, 0.72)
+			elif bool(enemy.get("priority_active", false)):
+				ring_color = Color(0.62, 0.88, 1.0, 0.98)
+
 			if priority_mode_active:
 				ring_color = (
 					Color(0.55, 0.95, 1.0, 1.0)
