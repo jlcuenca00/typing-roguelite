@@ -444,6 +444,26 @@ func _random_priority_word() -> String:
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
 
 
+func _get_visible_priority_mechanic(mechanic_id: String) -> Dictionary:
+	var viewport_rect := get_viewport_rect()
+
+	for enemy in enemies:
+		if not bool(enemy.get("priority", false)):
+			continue
+		if String(enemy.get("mechanic", "")) != mechanic_id:
+			continue
+
+		var pos: Vector2 = enemy["position"]
+		if viewport_rect.has_point(pos):
+			return enemy
+
+	return {}
+
+
+func _has_visible_priority_mechanic(mechanic_id: String) -> bool:
+	return not _get_visible_priority_mechanic(mechanic_id).is_empty()
+
+
 # Typing stream ---------------------------------------------------------------
 
 func _load_words() -> void:
@@ -669,6 +689,11 @@ func _execute_attack(attack: Dictionary) -> void:
 	var count := maxi(1, int(attack.get("projectile_count", 1)))
 	var total_spread := float(attack.get("spread_radians", 0.0))
 	var damage := float(attack.get("damage", 1.0))
+
+	var jammer := _get_visible_priority_mechanic("jam")
+	if not jammer.is_empty():
+		damage *= float(jammer.get("player_damage_multiplier", 0.72))
+
 	var speed := float(attack.get("projectile_speed", 720.0))
 	var tags: Array = attack.get("tags", [])
 	var effects: Array = attack.get("effects", [])
@@ -749,6 +774,13 @@ func _spawn_enemy() -> void:
 		"enemy_id": String(spec.get("enemy_id", "basic")),
 		"priority": is_priority,
 		"priority_word": priority_word,
+		"mechanic": String(spec.get("mechanic", "")),
+		"player_damage_multiplier": float(spec.get("player_damage_multiplier", 1.0)),
+		"protected_damage_multiplier": float(spec.get("protected_damage_multiplier", 1.0)),
+		"summon_interval": float(spec.get("summon_interval", 0.0)),
+		"summon_count": int(spec.get("summon_count", 0)),
+		"ability_timer": float(spec.get("summon_interval", 0.0)),
+		"counts_for_wave": true,
 		"speed": speed,
 		"hp": hp_value,
 		"max_hp": hp_value,
@@ -768,6 +800,24 @@ func _update_enemies(delta: float) -> void:
 		var enemy := enemies[i]
 		var pos: Vector2 = enemy["position"]
 		var knockback: Vector2 = enemy["knockback"]
+
+		if (
+			String(enemy.get("mechanic", "")) == "summon"
+			and get_viewport_rect().has_point(pos)
+		):
+			var ability_timer := float(enemy.get("ability_timer", 0.0)) - delta
+			if ability_timer <= 0.0:
+				_spawn_summoned_swarmers(
+					pos,
+					int(enemy.get("summon_count", 2))
+				)
+				_spawn_impact_particles(
+					pos,
+					Color(0.90, 0.55, 1.0),
+					10
+				)
+				ability_timer = float(enemy.get("summon_interval", 4.5))
+			enemy["ability_timer"] = ability_timer
 
 		var status_damage := _update_enemy_statuses(enemy, delta)
 		if status_damage > 0.0:
@@ -805,8 +855,10 @@ func _update_enemies(delta: float) -> void:
 				7
 			)
 			var removed_uid := int(enemy.get("uid", -1))
+			var counts_for_wave := bool(enemy.get("counts_for_wave", true))
 			enemies.remove_at(i)
-			wave_resolved_count += 1
+			if counts_for_wave:
+				wave_resolved_count += 1
 
 			if removed_uid == locked_target_uid:
 				locked_target_uid = -1
@@ -818,6 +870,50 @@ func _update_enemies(delta: float) -> void:
 			if hp <= 0.0:
 				_end_run()
 				return
+
+
+func _spawn_summoned_swarmers(origin: Vector2, count: int) -> void:
+	if not enemy_definitions.has("swarmer"):
+		return
+
+	var definition: Dictionary = enemy_definitions["swarmer"]
+	var wave_scale := float(current_wave - 1)
+
+	for i in range(maxi(count, 0)):
+		var angle := rng.randf_range(0.0, TAU)
+		var spawn_pos := origin + Vector2.RIGHT.rotated(angle) * rng.randf_range(14.0, 30.0)
+		var uid := next_enemy_uid
+		next_enemy_uid += 1
+		var base_hp := 34.0 + wave_scale * 3.0
+		var base_speed := rng.randf_range(48.0, 62.0) + wave_scale * 1.8
+		var color := Color.from_string(
+			String(definition.get("color", "#ffb36b")),
+			Color(1.0, 0.70, 0.42)
+		)
+
+		enemies.append({
+			"uid": uid,
+			"position": spawn_pos,
+			"enemy_id": "swarmer",
+			"priority": false,
+			"priority_word": "",
+			"mechanic": "",
+			"player_damage_multiplier": 1.0,
+			"protected_damage_multiplier": 1.0,
+			"summon_interval": 0.0,
+			"summon_count": 0,
+			"ability_timer": 0.0,
+			"counts_for_wave": false,
+			"speed": base_speed * float(definition.get("speed_multiplier", 1.65)),
+			"hp": base_hp * float(definition.get("hp_multiplier", 0.42)),
+			"max_hp": base_hp * float(definition.get("hp_multiplier", 0.42)),
+			"xp_value": 0,
+			"radius": ENEMY_RADIUS * float(definition.get("radius_multiplier", 0.62)),
+			"base_color": color,
+			"flash": 0.0,
+			"knockback": Vector2.ZERO,
+			"statuses": {}
+		})
 
 
 func _update_enemy_statuses(enemy: Dictionary, delta: float) -> float:
@@ -963,6 +1059,13 @@ func _update_bullets(delta: float) -> void:
 			):
 				var enemy := enemies[enemy_index]
 				var damage := float(bullet["damage"])
+
+				var bulwark := _get_visible_priority_mechanic("shield")
+				if not bulwark.is_empty():
+					damage *= float(
+						bulwark.get("protected_damage_multiplier", 0.55)
+					)
+
 				enemy["hp"] = float(enemy["hp"]) - damage
 				enemy["flash"] = 0.075
 
@@ -1117,13 +1220,23 @@ func _process_pending_reactions() -> void:
 		shake_strength = maxf(shake_strength, 3.0)
 
 		for i in range(enemies.size() - 1, -1, -1):
+			if bool(enemies[i].get("priority", false)):
+				continue
+
 			var enemy_pos: Vector2 = enemies[i]["position"]
 
 			if center.distance_squared_to(enemy_pos) > radius * radius:
 				continue
 
 			var enemy := enemies[i]
-			enemy["hp"] = float(enemy["hp"]) - damage
+			var applied_damage := damage
+			var bulwark := _get_visible_priority_mechanic("shield")
+			if not bulwark.is_empty():
+				applied_damage *= float(
+					bulwark.get("protected_damage_multiplier", 0.55)
+				)
+
+			enemy["hp"] = float(enemy["hp"]) - applied_damage
 			enemy["flash"] = 0.10
 
 			var push := (enemy_pos - center).normalized()
@@ -1133,7 +1246,7 @@ func _process_pending_reactions() -> void:
 
 			_spawn_damage_number(
 				enemy_pos,
-				int(round(damage)),
+				int(round(applied_damage)),
 				reaction_color
 			)
 
@@ -1174,6 +1287,7 @@ func _kill_enemy(index: int, position: Vector2) -> void:
 
 	var enemy_uid := int(enemies[index].get("uid", -1))
 	var xp_value := int(enemies[index].get("xp_value", 1))
+	var counts_for_wave := bool(enemies[index].get("counts_for_wave", true))
 	enemies.remove_at(index)
 
 	if enemy_uid == locked_target_uid:
@@ -1184,9 +1298,12 @@ func _kill_enemy(index: int, position: Vector2) -> void:
 		priority_typed_prefix = ""
 
 	kills += 1
-	wave_resolved_count += 1
+	if counts_for_wave:
+		wave_resolved_count += 1
+
 	_spawn_death_particles(position)
-	_spawn_xp_particles(position, xp_value)
+	if xp_value > 0:
+		_spawn_xp_particles(position, xp_value)
 
 
 # XP / progression ------------------------------------------------------------
@@ -1583,6 +1700,8 @@ func _available_enemy_ids(wave_number: int) -> Array[String]:
 			continue
 
 		var definition: Dictionary = enemy_definitions[enemy_id]
+		if bool(definition.get("spawn_only", false)):
+			continue
 		var unlock_wave := int(definition.get("unlock_wave", 1))
 		if unlock_wave <= wave_number:
 			specials.append({
@@ -2162,6 +2281,26 @@ func _draw() -> void:
 
 	var world_font := ThemeDB.fallback_font
 
+	if _has_visible_priority_mechanic("jam"):
+		draw_arc(
+			center,
+			PLAYER_RADIUS + 9.0,
+			0.0,
+			TAU,
+			32,
+			Color(0.69, 0.49, 1.0, 0.80),
+			2.0
+		)
+		draw_string(
+			world_font,
+			center + Vector2(-28.0, -28.0),
+			"JAMMED",
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1,
+			12,
+			Color(0.79, 0.66, 1.0, 0.90)
+		)
+
 	for enemy in enemies:
 		var pos: Vector2 = enemy["position"]
 		var enemy_color := _get_enemy_draw_color(enemy)
@@ -2188,6 +2327,20 @@ func _draw() -> void:
 				24,
 				Color(0.56, 0.94, 0.76, 0.62),
 				1.0
+			)
+
+		if (
+			not bool(enemy.get("priority", false))
+			and _has_visible_priority_mechanic("shield")
+		):
+			draw_arc(
+				pos,
+				enemy_radius + 7.0,
+				0.0,
+				TAU,
+				24,
+				Color(0.40, 0.86, 0.94, 0.72),
+				1.5
 			)
 
 		var statuses: Dictionary = enemy.get(
