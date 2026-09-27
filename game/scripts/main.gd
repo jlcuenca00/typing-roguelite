@@ -2094,6 +2094,8 @@ func _get_enemy_draw_color(enemy: Dictionary) -> Color:
 	if statuses.has("burn"):
 		return Color(1.0, 0.45, 0.28)
 
-	return Color(
-		enemy.get("base_color", Color(0.95, 0.33, 0.38))
+	var base_color: Color = enemy.get(
+		"base_color",
+		Color(0.95, 0.33, 0.38)
 	)
+	return base_color
