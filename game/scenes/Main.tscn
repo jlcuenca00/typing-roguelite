@@ -82,16 +82,28 @@ theme_override_constants/outline_size = 3
 theme_override_colors/font_outline_color = Color(0.04, 0.045, 0.055, 0.85)
 text = "Initializing..."
 
-[node name="DevLabel" type="Label" parent="HUD"]
+[node name="DevPanel" type="ColorRect" parent="HUD"]
 visible = false
-offset_left = 650.0
-offset_top = 684.0
-offset_right = 1260.0
-offset_bottom = 710.0
-theme_override_font_sizes/font_size = 11
-theme_override_colors/font_color = Color(0.48, 0.52, 0.60, 0.78)
-text = "DEV  F1 HEAL   F2 GOD OFF   F3 CLEAR WAVE   F4 RESTART"
-horizontal_alignment = 2
+z_index = 100
+offset_left = 1035.0
+offset_top = 18.0
+offset_right = 1262.0
+offset_bottom = 128.0
+mouse_filter = 2
+color = Color(0.035, 0.04, 0.055, 0.88)
+
+[node name="DevLabel" type="Label" parent="HUD/DevPanel"]
+offset_left = 10.0
+offset_top = 8.0
+offset_right = 217.0
+offset_bottom = 102.0
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.72, 0.76, 0.84, 0.96)
+text = "DEV CONTROLS
+F1  Heal / Revive
+F2  God Mode: OFF
+F3  Clear Wave
+F4  Restart"
 
 [node name="TypingBackdrop" type="ColorRect" parent="HUD"]
 offset_left = 285.0
