@@ -316,7 +316,8 @@ func _get_enemy_index_by_uid(uid: int) -> int:
 
 
 func _get_nearest_priority_index() -> int:
-	var center := get_viewport_rect().size * 0.5
+	var viewport_rect := get_viewport_rect()
+	var center := viewport_rect.size * 0.5
 	var best_index := -1
 	var best_distance_sq := INF
 
@@ -325,6 +326,9 @@ func _get_nearest_priority_index() -> int:
 			continue
 
 		var pos: Vector2 = enemies[i]["position"]
+		if not viewport_rect.has_point(pos):
+			continue
+
 		var distance_sq := center.distance_squared_to(pos)
 		if distance_sq < best_distance_sq:
 			best_distance_sq = distance_sq
@@ -837,7 +841,8 @@ func _get_locked_target_index() -> int:
 
 	locked_target_uid = -1
 
-	var center := get_viewport_rect().size * 0.5
+	var viewport_rect := get_viewport_rect()
+	var center := viewport_rect.size * 0.5
 	var nearest_index := -1
 	var nearest_distance_sq := INF
 
@@ -846,6 +851,9 @@ func _get_locked_target_index() -> int:
 			continue
 
 		var enemy_pos: Vector2 = enemies[i]["position"]
+		if not viewport_rect.has_point(enemy_pos):
+			continue
+
 		var distance_sq := center.distance_squared_to(enemy_pos)
 		if distance_sq < nearest_distance_sq:
 			nearest_distance_sq = distance_sq
