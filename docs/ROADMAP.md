@@ -40,12 +40,14 @@
 - [x] Add 2 more priority enemies (Bulwark, Caller).
 - [x] Add priority typing interruption/resume.
 - [x] Give priority enemies distinct battlefield mechanics beyond direct typing.
+- [x] Require priority enemies to visibly enter, pause, and complete a telegraphed on-screen cast before their mechanic activates.
 - [x] Distribute priority spawns across each wave and prevent active priority stacking.
 - [x] Cap authored priority enemies per wave and preserve a normal-enemy tail in late waves.
 - [x] Reduce knockback globally, with stronger resistance for elites and bosses.
 - [x] Add elite modifier system (Regenerator prototype).
 - [x] Add Wave 10 boss architecture with typed phase breaks.
 - [x] Add late-wave spawn density ramp, irregular batches, and within-wave crescendo.
+- [x] Make late difficulty density/composition-driven instead of globally increasing every enemy's movement speed.
 - [x] Add late-chaos safety caps for transient visual feedback.
 - [ ] Tune the full run toward the final target duration after playtesting.
 
