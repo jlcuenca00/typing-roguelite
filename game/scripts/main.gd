@@ -3,6 +3,7 @@ extends Node2D
 const CombatSystemScript = preload("res://scripts/combat/combat_system.gd")
 
 const UPGRADES_PATH := "res://data/combat/upgrades.json"
+const ENEMIES_PATH := "res://data/combat/enemies.json"
 
 const PLAYER_RADIUS := 14.0
 const ENEMY_RADIUS := 10.0
@@ -18,23 +19,10 @@ const TYPING_LINE_HEIGHT := 36.0
 const TYPING_LEFT_X := 48.0
 
 const TOTAL_WAVES := 8
-# Waves are defined by enemy count, not a timer. Early waves are small and
-# readable; later waves scale into larger hordes as the build comes online.
-const WAVE_ENEMY_COUNTS := [
-	8,
-	12,
-	18,
-	26,
-	36,
-	48,
-	62,
-	80
-]
-
-# Potential XP available if the player kills every enemy in the wave.
-# The budget grows faster later in the run so stronger builds can bank
-# multiple level-ups, while leaked enemies still mean lost XP.
-const WAVE_XP_BUDGETS := [
+# Each wave gets a fixed threat/XP budget. Enemy count is derived from which
+# archetypes the seeded wave plan spends that budget on. Player damage never
+# changes the budget or spawns extra enemies.
+const WAVE_THREAT_BUDGETS := [
 	8,
 	12,
 	18,
@@ -45,12 +33,15 @@ const WAVE_XP_BUDGETS := [
 	230
 ]
 
+const MAX_TYPES_PER_WAVE := 3
+
 const XP_GOAL_BASE := 8.0
 const XP_GOAL_GROWTH := 1.45
 const XP_GOAL_POWER := 0.80
 
 var rng := RandomNumberGenerator.new()
 var combat = CombatSystemScript.new()
+var enemy_definitions: Dictionary = {}
 
 # Typing state ----------------------------------------------------------------
 var word_pool: Array[String] = []
@@ -99,8 +90,7 @@ var wave_spawning := true
 var wave_intermission := false
 var wave_continue_waiting := false
 var wave_continue_typed := ""
-var wave_xp_payouts: Array[int] = []
-var wave_xp_spawn_cursor := 0
+var wave_spawn_plan: Array[Dictionary] = []
 
 var correct_keys := 0
 var incorrect_keys := 0
@@ -165,8 +155,9 @@ func _ready() -> void:
 	combat.load_definitions("starter")
 	_load_words()
 	_load_upgrades()
+	_load_enemy_definitions()
 	xp_bar_base_y = xp_bar_background.position.y
-	_prepare_wave_xp_payouts(current_wave)
+	_prepare_wave_spawn_plan(current_wave)
 
 	for i in range(WORD_BUFFER):
 		_append_random_word()
@@ -206,7 +197,7 @@ func _process(delta: float) -> void:
 			wave_spawned_count += 1
 			spawn_timer = spawn_interval
 
-			if wave_spawned_count >= _wave_enemy_count(current_wave):
+			if wave_spawned_count >= wave_spawn_plan.size():
 				wave_spawning = false
 
 	_update_enemies(delta)
@@ -218,7 +209,7 @@ func _process(delta: float) -> void:
 
 	if (
 		not wave_spawning
-		and wave_resolved_count >= _wave_enemy_count(current_wave)
+		and wave_resolved_count >= wave_spawn_plan.size()
 		and enemies.is_empty()
 		and not _has_pending_xp_particles()
 		and not wave_intermission
@@ -542,6 +533,10 @@ func _execute_attack(attack: Dictionary) -> void:
 
 
 func _spawn_enemy() -> void:
+	if wave_spawned_count < 0 or wave_spawned_count >= wave_spawn_plan.size():
+		return
+
+	var spec: Dictionary = wave_spawn_plan[wave_spawned_count]
 	var viewport_size := get_viewport_rect().size
 	var margin := rng.randf_range(SPAWN_MARGIN_MIN, SPAWN_MARGIN_MAX)
 	var edge := rng.randi_range(0, 3)
@@ -570,20 +565,26 @@ func _spawn_enemy() -> void:
 			)
 
 	var wave_scale := float(current_wave - 1)
-	var speed := rng.randf_range(38.0, 62.0) + wave_scale * 2.2 + minf(elapsed * 0.06, 12.0)
-	var hp_value := 44.0 + wave_scale * 4.5 + minf(elapsed * 0.05, 14.0)
-	var xp_value := 1
-
-	if wave_xp_spawn_cursor < wave_xp_payouts.size():
-		xp_value = wave_xp_payouts[wave_xp_spawn_cursor]
-	wave_xp_spawn_cursor += 1
+	var base_speed := rng.randf_range(38.0, 62.0) + wave_scale * 2.2 + minf(elapsed * 0.06, 12.0)
+	var base_hp := 44.0 + wave_scale * 4.5 + minf(elapsed * 0.05, 14.0)
+	var radius := ENEMY_RADIUS * float(spec.get("radius_multiplier", 1.0))
+	var hp_value := base_hp * float(spec.get("hp_multiplier", 1.0))
+	var speed := base_speed * float(spec.get("speed_multiplier", 1.0))
+	var threat_cost := int(spec.get("threat_cost", 1))
+	var base_color := Color.from_string(
+		String(spec.get("color", "#f25561")),
+		Color(0.95, 0.33, 0.38)
+	)
 
 	enemies.append({
 		"position": position,
+		"enemy_id": String(spec.get("enemy_id", "basic")),
 		"speed": speed,
 		"hp": hp_value,
 		"max_hp": hp_value,
-		"xp_value": xp_value,
+		"xp_value": threat_cost,
+		"radius": radius,
+		"base_color": base_color,
 		"flash": 0.0,
 		"knockback": Vector2.ZERO,
 		"statuses": {}
@@ -739,8 +740,11 @@ func _update_bullets(delta: float) -> void:
 		for enemy_index in range(enemies.size() - 1, -1, -1):
 			var enemy_pos: Vector2 = enemies[enemy_index]["position"]
 
+			var enemy_radius := float(
+				enemies[enemy_index].get("radius", ENEMY_RADIUS)
+			)
 			if Vector2(bullet["position"]).distance_squared_to(enemy_pos) <= pow(
-				ENEMY_RADIUS + BULLET_RADIUS,
+				enemy_radius + BULLET_RADIUS,
 				2
 			):
 				var enemy := enemies[enemy_index]
@@ -1323,45 +1327,120 @@ func _apply_upgrade(upgrade: Dictionary) -> void:
 	_update_stats()
 
 
-func _wave_enemy_count(wave_number: int) -> int:
+func _load_enemy_definitions() -> void:
+	if not FileAccess.file_exists(ENEMIES_PATH):
+		push_error("Missing enemy definitions: %s" % ENEMIES_PATH)
+		return
+
+	var parsed = JSON.parse_string(
+		FileAccess.get_file_as_string(ENEMIES_PATH)
+	)
+
+	if parsed == null or not (parsed is Dictionary):
+		push_error("Invalid enemy definitions.")
+		return
+
+	enemy_definitions = parsed
+
+
+func _wave_threat_budget(wave_number: int) -> int:
 	var index := clampi(
 		wave_number - 1,
 		0,
-		WAVE_ENEMY_COUNTS.size() - 1
+		WAVE_THREAT_BUDGETS.size() - 1
 	)
-	return int(WAVE_ENEMY_COUNTS[index])
+	return int(WAVE_THREAT_BUDGETS[index])
 
 
-func _wave_xp_budget(wave_number: int) -> int:
-	var index := clampi(
-		wave_number - 1,
-		0,
-		WAVE_XP_BUDGETS.size() - 1
+func _available_enemy_ids(wave_number: int) -> Array[String]:
+	var available: Array[Dictionary] = []
+
+	for enemy_id in enemy_definitions.keys():
+		var definition: Dictionary = enemy_definitions[enemy_id]
+		var unlock_wave := int(definition.get("unlock_wave", 1))
+		if unlock_wave <= wave_number:
+			available.append({
+				"id": String(enemy_id),
+				"unlock_wave": unlock_wave
+			})
+
+	available.sort_custom(
+		func(a: Dictionary, b: Dictionary) -> bool:
+			return int(a["unlock_wave"]) > int(b["unlock_wave"])
 	)
-	return int(WAVE_XP_BUDGETS[index])
+
+	var result: Array[String] = []
+	for i in range(mini(MAX_TYPES_PER_WAVE, available.size())):
+		result.append(String(available[i]["id"]))
+
+	return result
 
 
-func _prepare_wave_xp_payouts(wave_number: int) -> void:
-	var enemy_count := _wave_enemy_count(wave_number)
-	var budget := maxi(_wave_xp_budget(wave_number), enemy_count)
+func _weighted_enemy_choice(
+	candidates: Array[String],
+	remaining_budget: int
+) -> String:
+	var affordable: Array[String] = []
+	var total_weight := 0.0
 
-	wave_xp_payouts.clear()
-	wave_xp_spawn_cursor = 0
+	for enemy_id in candidates:
+		var definition: Dictionary = enemy_definitions[enemy_id]
+		var cost := int(definition.get("threat_cost", 1))
+		if cost <= remaining_budget:
+			affordable.append(enemy_id)
+			total_weight += maxf(float(definition.get("weight", 1.0)), 0.01)
 
-	# Every enemy is worth at least 1 XP. The remaining wave budget is broken
-	# into random little clumps, so some kills matter more without changing the
-	# total potential XP available in the wave.
-	for i in range(enemy_count):
-		wave_xp_payouts.append(1)
+	if affordable.is_empty():
+		return "basic"
 
-	var remaining := budget - enemy_count
-	while remaining > 0:
-		var index := rng.randi_range(0, enemy_count - 1)
-		var chunk := mini(rng.randi_range(1, 3), remaining)
-		wave_xp_payouts[index] += chunk
-		remaining -= chunk
+	var roll := rng.randf() * total_weight
+	var cursor := 0.0
 
-	wave_xp_payouts.shuffle()
+	for enemy_id in affordable:
+		var definition: Dictionary = enemy_definitions[enemy_id]
+		cursor += maxf(float(definition.get("weight", 1.0)), 0.01)
+		if roll <= cursor:
+			return enemy_id
+
+	return affordable.back()
+
+
+func _prepare_wave_spawn_plan(wave_number: int) -> void:
+	wave_spawn_plan.clear()
+
+	var remaining_budget := _wave_threat_budget(wave_number)
+	var available := _available_enemy_ids(wave_number)
+
+	if available.is_empty():
+		available = ["basic"]
+
+	while remaining_budget > 0:
+		var enemy_id := _weighted_enemy_choice(
+			available,
+			remaining_budget
+		)
+		if not enemy_definitions.has(enemy_id):
+			break
+
+		var definition: Dictionary = enemy_definitions[enemy_id]
+		var cost := maxi(int(definition.get("threat_cost", 1)), 1)
+
+		if cost > remaining_budget:
+			enemy_id = "basic"
+			definition = enemy_definitions.get("basic", {})
+			cost = maxi(int(definition.get("threat_cost", 1)), 1)
+
+		if cost > remaining_budget:
+			break
+
+		var spawn_spec := definition.duplicate(true)
+		spawn_spec["enemy_id"] = enemy_id
+		wave_spawn_plan.append(spawn_spec)
+		remaining_budget -= cost
+
+	wave_spawn_plan.shuffle()
+	wave_spawned_count = 0
+	wave_resolved_count = 0
 
 
 func _has_pending_xp_particles() -> bool:
@@ -1432,9 +1511,9 @@ func _refresh_wave_continue_indicator() -> void:
 		remaining
 	]
 
-	upgrade_subtitle.text = "[center][color=#8b94a2]NEXT: WAVE %d  •  %d ENEMIES[/color]\n\n[font_size=30]%s[/font_size]\n[color=#68717d]TYPE TO START[/color][/center]" % [
+	upgrade_subtitle.text = "[center][color=#8b94a2]NEXT: WAVE %d  •  THREAT %d[/color]\n\n[font_size=30]%s[/font_size]\n[color=#68717d]TYPE TO START[/color][/center]" % [
 		current_wave + 1,
-		_wave_enemy_count(current_wave + 1),
+		_wave_threat_budget(current_wave + 1),
 		command_markup
 	]
 
@@ -1448,12 +1527,10 @@ func _start_next_wave() -> void:
 	upgrade_overlay.visible = false
 	wave_intermission = false
 	current_wave += 1
-	wave_spawned_count = 0
-	wave_resolved_count = 0
 	wave_spawning = true
 	spawn_timer = 0.35
 	spawn_interval = maxf(0.30, 0.95 - float(current_wave - 1) * 0.045)
-	_prepare_wave_xp_payouts(current_wave)
+	_prepare_wave_spawn_plan(current_wave)
 	_reset_typing_for_new_wave()
 	_update_wave_ui()
 
@@ -1505,7 +1582,7 @@ func _update_wave_ui() -> void:
 	elif wave_intermission:
 		wave_label.text = "WAVE %d / %d   CLEARED" % [current_wave, TOTAL_WAVES]
 	else:
-		var total_enemies := _wave_enemy_count(current_wave)
+		var total_enemies := wave_spawn_plan.size()
 		var remaining := maxi(total_enemies - wave_resolved_count, 0)
 		wave_label.text = "WAVE %d / %d   ENEMIES %d" % [
 			current_wave,
@@ -1860,9 +1937,10 @@ func _draw() -> void:
 				0.72
 			)
 
+		var enemy_radius := float(enemy.get("radius", ENEMY_RADIUS))
 		draw_circle(
 			pos,
-			ENEMY_RADIUS,
+			enemy_radius,
 			enemy_color
 		)
 
@@ -1873,7 +1951,7 @@ func _draw() -> void:
 		if statuses.has("freeze"):
 			draw_arc(
 				pos,
-				ENEMY_RADIUS + 3.0,
+				enemy_radius + 3.0,
 				0.0,
 				TAU,
 				24,
@@ -1883,7 +1961,7 @@ func _draw() -> void:
 		if statuses.has("shock"):
 			draw_arc(
 				pos,
-				ENEMY_RADIUS + 6.0,
+				enemy_radius + 6.0,
 				0.0,
 				TAU,
 				24,
@@ -2016,4 +2094,6 @@ func _get_enemy_draw_color(enemy: Dictionary) -> Color:
 	if statuses.has("burn"):
 		return Color(1.0, 0.45, 0.28)
 
-	return Color(0.95, 0.33, 0.38)
+	return Color(
+		enemy.get("base_color", Color(0.95, 0.33, 0.38))
+	)
