@@ -948,6 +948,45 @@ func _spawn_enemy() -> void:
 	})
 
 
+func _activate_boss_lock_if_needed(
+	enemy: Dictionary,
+	position: Vector2
+) -> bool:
+	if not bool(enemy.get("boss", false)):
+		return false
+	if bool(enemy.get("boss_shielded", false)):
+		return false
+
+	var phase := int(enemy.get("boss_phase", 0))
+	if phase >= BOSS_PHASE_THRESHOLDS.size():
+		return false
+
+	var threshold := float(BOSS_PHASE_THRESHOLDS[phase])
+	var max_hp_value := maxf(float(enemy.get("max_hp", 1.0)), 1.0)
+	var threshold_hp := max_hp_value * threshold
+
+	if float(enemy.get("hp", max_hp_value)) > threshold_hp:
+		return false
+
+	# Phase gates cannot be skipped by a giant late-game hit. Damage may reach
+	# the threshold, but the boss must be breached through a priority command
+	# before normal fire can continue.
+	enemy["hp"] = maxf(float(enemy.get("hp", threshold_hp)), threshold_hp)
+	enemy["boss_phase"] = phase + 1
+	enemy["boss_shielded"] = true
+	enemy["priority"] = true
+	enemy["priority_word"] = _random_priority_word()
+	enemy["flash"] = 0.16
+	locked_target_uid = -1
+
+	_spawn_combat_text(
+		position + Vector2(0.0, -48.0),
+		"LOCKED",
+		Color(0.64, 0.82, 1.0)
+	)
+	return true
+
+
 func _update_enemies(delta: float) -> void:
 	var center := get_viewport_rect().size * 0.5
 
@@ -957,30 +996,6 @@ func _update_enemies(delta: float) -> void:
 		var knockback: Vector2 = enemy["knockback"]
 
 		if bool(enemy.get("boss", false)):
-			var boss_ratio := clampf(
-				float(enemy["hp"]) / maxf(float(enemy["max_hp"]), 1.0),
-				0.0,
-				1.0
-			)
-			var boss_phase := int(enemy.get("boss_phase", 0))
-
-			if (
-				not bool(enemy.get("boss_shielded", false))
-				and boss_phase < BOSS_PHASE_THRESHOLDS.size()
-				and boss_ratio <= float(BOSS_PHASE_THRESHOLDS[boss_phase])
-			):
-				enemy["boss_phase"] = boss_phase + 1
-				enemy["boss_shielded"] = true
-				enemy["priority"] = true
-				enemy["priority_word"] = _random_priority_word()
-				enemy["flash"] = 0.16
-				locked_target_uid = -1
-				_spawn_combat_text(
-					pos + Vector2(0.0, -48.0),
-					"LOCKED",
-					Color(0.64, 0.82, 1.0)
-				)
-
 			if get_viewport_rect().has_point(pos):
 				var boss_attack_timer := float(
 					enemy.get("boss_attack_timer", 3.2)
@@ -992,6 +1007,11 @@ func _update_enemies(delta: float) -> void:
 							0.0,
 							hp - float(enemy.get("boss_attack_damage", 8.0))
 						)
+
+					if hp <= 0.0:
+						_end_run()
+						return
+
 					_spawn_reaction_wave(
 						pos,
 						150.0,
@@ -1062,6 +1082,9 @@ func _update_enemies(delta: float) -> void:
 			enemy["ability_timer"] = ability_timer
 
 		var status_damage := _update_enemy_statuses(enemy, delta)
+		if bool(enemy.get("boss_shielded", false)):
+			status_damage = 0.0
+
 		if status_damage > 0.0:
 			enemy["hp"] = float(enemy["hp"]) - status_damage
 			enemy["time_since_hit"] = 0.0
@@ -1070,6 +1093,8 @@ func _update_enemies(delta: float) -> void:
 				int(round(status_damage)),
 				Color(1.0, 0.48, 0.30)
 			)
+
+		_activate_boss_lock_if_needed(enemy, pos)
 
 		if float(enemy["hp"]) <= 0.0:
 			_kill_enemy(i, pos)
@@ -1363,6 +1388,8 @@ func _update_bullets(delta: float) -> void:
 					enemy_pos
 				)
 
+				_activate_boss_lock_if_needed(enemy, enemy_pos)
+
 				if float(enemy["hp"]) <= 0.0:
 					_kill_enemy(enemy_index, enemy_pos)
 				else:
@@ -1518,6 +1545,8 @@ func _process_pending_reactions() -> void:
 				int(round(applied_damage)),
 				reaction_color
 			)
+
+			_activate_boss_lock_if_needed(enemy, enemy_pos)
 
 			if float(enemy["hp"]) <= 0.0:
 				_kill_enemy(i, enemy_pos)
@@ -2124,28 +2153,6 @@ func _spread_priority_spawns() -> void:
 		var slot := int(round(ratio * float(final_count - 1)))
 		slot = clampi(slot, 1, wave_spawn_plan.size())
 		wave_spawn_plan.insert(slot, priorities[i])
-
-
-func _append_boss_to_wave_plan(
-	wave_number: int,
-	remaining_budget: int
-) -> int:
-	if wave_number != BOSS_WAVE or not enemy_definitions.has(BOSS_ID):
-		return remaining_budget
-
-	var definition: Dictionary = enemy_definitions[BOSS_ID]
-	var cost := maxi(int(definition.get("threat_cost", 80)), 1)
-
-	if cost > remaining_budget:
-		return remaining_budget
-
-	var spec := definition.duplicate(true)
-	spec["enemy_id"] = BOSS_ID
-	spec["elite"] = false
-	spec["elite_trait"] = ""
-	wave_spawn_plan.append(spec)
-
-	return remaining_budget - cost
 
 
 func _prepare_wave_spawn_plan(wave_number: int) -> void:
