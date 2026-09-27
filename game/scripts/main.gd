@@ -2473,13 +2473,42 @@ func _draw() -> void:
 				Color(1.0, 0.82, 0.34, 0.95),
 				2.0
 			)
+
+			var elite_bar_width := 30.0
+			var elite_bar_height := 3.0
+			var elite_ratio := clampf(
+				float(enemy["hp"]) / maxf(float(enemy["max_hp"]), 1.0),
+				0.0,
+				1.0
+			)
+			var elite_bar_pos := pos + Vector2(
+				-elite_bar_width * 0.5,
+				-enemy_radius - 21.0
+			)
+			draw_rect(
+				Rect2(
+					elite_bar_pos,
+					Vector2(elite_bar_width, elite_bar_height)
+				),
+				Color(0.08, 0.09, 0.11, 0.92)
+			)
+			draw_rect(
+				Rect2(
+					elite_bar_pos,
+					Vector2(
+						elite_bar_width * elite_ratio,
+						elite_bar_height
+					)
+				),
+				Color(1.0, 0.82, 0.34, 0.96)
+			)
 			draw_string(
 				world_font,
-				pos + Vector2(-18.0, -enemy_radius - 18.0),
+				pos + Vector2(-18.0, -enemy_radius - 25.0),
 				"ELITE",
 				HORIZONTAL_ALIGNMENT_LEFT,
 				-1,
-				11,
+				10,
 				Color(1.0, 0.86, 0.45, 0.92)
 			)
 
