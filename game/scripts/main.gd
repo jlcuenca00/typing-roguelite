@@ -579,6 +579,13 @@ func _update_typing_caret(delta: float) -> void:
 	if word_queue.is_empty():
 		return
 
+	if priority_focus_uid >= 0:
+		typing_caret.visible = false
+		typing_panel.modulate.a = 0.42
+		return
+
+	typing_caret.visible = true
+	typing_panel.modulate.a = 1.0
 	caret_idle_time += delta
 
 	var current := _get_current_word()
@@ -879,6 +886,7 @@ func _fire_at_nearest_enemy(
 		"effects": effects.duplicate(true),
 		"weapon_id": weapon_id,
 		"target_uid": locked_target_uid,
+		"strict_target": absf(spread) < 0.001,
 		"color": projectile_color
 	})
 
@@ -893,6 +901,11 @@ func _update_bullets(delta: float) -> void:
 		for enemy_index in range(enemies.size() - 1, -1, -1):
 			if bool(enemies[enemy_index].get("priority", false)):
 				continue
+
+			if bool(bullet.get("strict_target", false)):
+				var intended_uid := int(bullet.get("target_uid", -1))
+				if int(enemies[enemy_index].get("uid", -1)) != intended_uid:
+					continue
 
 			var enemy_pos: Vector2 = enemies[enemy_index]["position"]
 
@@ -2119,6 +2132,17 @@ func _draw() -> void:
 			enemy_radius,
 			enemy_color
 		)
+
+		if int(enemy.get("uid", -1)) == locked_target_uid:
+			draw_arc(
+				pos,
+				enemy_radius + 4.0,
+				0.0,
+				TAU,
+				24,
+				Color(0.56, 0.94, 0.76, 0.62),
+				1.0
+			)
 
 		var statuses: Dictionary = enemy.get(
 			"statuses",
