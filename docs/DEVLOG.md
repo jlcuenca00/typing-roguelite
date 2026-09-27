@@ -178,3 +178,29 @@ Keep this log short. Record decisions, experiments, what worked, what failed, an
 - Re-test Waves 8-10 and verify that normal enemies remain present around priority encounters.
 - Verify that normal targets stay onscreen during sustained combos and Overseer remains anchored in the arena.
 - Continue balance/performance tuning from the full-run test.
+
+
+### 2026-09-27 — Reference-informed pressure pass
+
+**Changed**
+- Removed the universal per-wave movement-speed increase from normal enemies.
+- Removed wave-based speed scaling from Caller-spawned Swarmers; their speed now comes from their archetype multiplier.
+- Later-wave difficulty remains driven by spawn density, horde composition, HP pressure, elites, priority mechanics, and the boss.
+- Priority enemy mechanics no longer activate merely because the enemy exists offscreen.
+- A priority enemy must enter roughly 34 px inside the visible arena, pause for a ~0.55 second cast, then activate its mechanic.
+- Jammer, Bulwark, and Caller now show a cast/activation combat cue and a visual state change.
+- Caller cannot begin summoning until its activation cast completes.
+
+**Why**
+- Reference footage reinforced that late-run intensity is carried more by body count, build escalation, and enemy composition than by globally accelerating every basic enemy.
+- Priority effects need a visible cause before their consequence appears so the player can read the battlefield at typing speed.
+
+**Result to test**
+- Basic enemies should feel more consistent across the run while Runners/Swarmers retain explicit speed identities.
+- Priority enemies should create a readable arrival beat: enter -> pause/cast -> effect active -> continue advancing.
+- Late waves should feel like a dense horde containing priority threats, not a set of invisible debuffs or uniformly faster enemies.
+
+**Next**
+- Full Wave 1-10 test focused on late density and priority readability.
+- If the horde still feels too evenly distributed, add temporary directional spawn-pressure bias.
+- After pacing is stable, expand run upgrades toward more behavior-changing synergies rather than mostly numeric increases.
