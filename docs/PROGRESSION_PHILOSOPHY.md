@@ -75,16 +75,25 @@ That distinction is the balancing target.
 
 ## Wave XP Economy
 
-Run XP should reward performance without directly rewarding raw damage numbers.
+Waves use a fixed **threat budget**, not a fixed enemy count and not dynamic scaling from the player's damage.
 
-Each wave has a potential XP budget. That budget is distributed randomly across the enemies in that wave. Killed enemies pay their assigned XP; enemies that reach the player do not. This means a stronger build naturally converts more of the wave's potential XP into actual level-ups.
+At the start of a wave, the game spends that wave's budget on enemy archetypes. Cheap enemies consume little budget and produce a larger horde; tougher archetypes consume more budget and therefore reduce the raw body count. The plan is generated before the wave plays, so dealing more damage never causes the director to secretly spawn extra enemies.
 
-The potential XP budget scales faster in later waves while level costs also rise nonlinearly. The intended rhythm is:
+An enemy's threat cost is also its normal XP value. This links difficulty and potential income: clearing more of the authored wave converts more of its threat budget into XP, while enemies that reach the player take their XP with them.
 
-- early waves: usually one level-up
-- mid waves: one or occasionally two
-- late waves: two, with three possible on strong/high-clear waves
+Only a small recent roster is eligible in a wave. New archetypes enter as the run advances, allowing composition to escalate separately from raw HP scaling.
 
-Wave 1 is a deliberate onboarding exception and always produces the first level-up.
+The current perfect-clear XP curve is deliberately shaped so the prototype trends approximately:
 
-This keeps level-up count responsive to kill performance and future enemy composition (normal enemies, priority enemies, elites, bosses) without making damage dealt itself an XP currency.
+- Wave 1: 1 level-up
+- Wave 2: 1
+- Wave 3: 1
+- Wave 4: 1
+- Wave 5: 1
+- Wave 6: up to 2
+- Wave 7: up to 2
+- Wave 8: up to 3
+
+These are ceilings, not guaranteed rewards. Wave 1 is the onboarding exception and always produces the first level-up.
+
+This preserves the desirable feedback loop: stronger builds do not make the director cheat harder; they simply kill more of the same planned threat budget and therefore recover more of its available XP.
