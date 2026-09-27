@@ -40,7 +40,7 @@
 - [x] Add 2 more priority enemies (Bulwark, Caller).
 - [x] Add priority typing interruption/resume.
 - [x] Give priority enemies distinct battlefield mechanics beyond direct typing.
-- [ ] Add elite.
+- [x] Add elite modifier system (Regenerator prototype).
 - [ ] Add boss.
 - [ ] Add 10-minute run pacing.
 
