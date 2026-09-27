@@ -88,7 +88,7 @@ z_index = 100
 offset_left = 1035.0
 offset_top = 18.0
 offset_right = 1262.0
-offset_bottom = 128.0
+offset_bottom = 174.0
 mouse_filter = 2
 color = Color(0.035, 0.04, 0.055, 0.88)
 
@@ -96,7 +96,7 @@ color = Color(0.035, 0.04, 0.055, 0.88)
 offset_left = 10.0
 offset_top = 8.0
 offset_right = 217.0
-offset_bottom = 102.0
+offset_bottom = 158.0
 theme_override_font_sizes/font_size = 12
 theme_override_colors/font_color = Color(0.72, 0.76, 0.84, 0.96)
 text = "DEV CONTROLS
