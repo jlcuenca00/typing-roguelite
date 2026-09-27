@@ -131,6 +131,9 @@ var reaction_counts := {
 	"overload": 0
 }
 
+# Development testing ---------------------------------------------------------
+var dev_god_mode := false
+
 # UI --------------------------------------------------------------------------
 @onready var typing_viewport: Control = $HUD/TypingViewport
 @onready var typing_panel: RichTextLabel = $HUD/TypingViewport/TypingPanel
@@ -143,6 +146,7 @@ var reaction_counts := {
 @onready var xp_count_label: Label = $HUD/XPPanel/XPCount
 @onready var level_label: Label = $HUD/XPPanel/LevelLabel
 @onready var wave_label: Label = $HUD/WaveLabel
+@onready var dev_label: Label = $HUD/DevLabel
 
 @onready var upgrade_overlay: ColorRect = $HUD/UpgradeOverlay
 @onready var upgrade_title: Label = $HUD/UpgradeOverlay/Title
@@ -179,6 +183,8 @@ func _ready() -> void:
 	_update_xp_ui()
 	_update_wave_ui()
 	_update_stats()
+	dev_label.visible = OS.is_debug_build()
+	_update_dev_hud()
 	queue_redraw()
 
 
@@ -237,6 +243,9 @@ func _process(delta: float) -> void:
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not event.pressed or event.echo:
+		return
+
+	if OS.is_debug_build() and _handle_dev_key(event):
 		return
 
 	if run_over or run_complete:
@@ -307,6 +316,106 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		error_flash = 0.16
 
 	_update_typing_ui()
+
+
+# Development testing ---------------------------------------------------------
+
+func _handle_dev_key(event: InputEvent) -> bool:
+	match event.keycode:
+		KEY_F1:
+			if not run_complete:
+				hp = max_hp
+				if run_over:
+					run_over = false
+					death_overlay.visible = false
+					wave_spawning = wave_spawned_count < wave_spawn_plan.size()
+				_update_stats()
+				_spawn_combat_text(
+					get_viewport_rect().size * 0.5 + Vector2(0.0, -52.0),
+					"DEV HEAL",
+					Color(0.60, 1.0, 0.72)
+				)
+			return true
+
+		KEY_F2:
+			dev_god_mode = not dev_god_mode
+			_update_dev_hud()
+			_spawn_combat_text(
+				get_viewport_rect().size * 0.5 + Vector2(0.0, -52.0),
+				"GOD ON" if dev_god_mode else "GOD OFF",
+				Color(1.0, 0.86, 0.48)
+			)
+			return true
+
+		KEY_F3:
+			_dev_perfect_clear_wave()
+			return true
+
+		KEY_F4:
+			get_tree().reload_current_scene()
+			return true
+
+	return false
+
+
+func _update_dev_hud() -> void:
+	if not is_instance_valid(dev_label):
+		return
+
+	dev_label.text = "DEV  F1 HEAL   F2 GOD %s   F3 CLEAR WAVE   F4 RESTART" % [
+		"ON" if dev_god_mode else "OFF"
+	]
+
+
+func _dev_perfect_clear_wave() -> void:
+	if (
+		run_complete
+		or wave_intermission
+		or level_up_open
+		or wave_continue_waiting
+	):
+		return
+
+	var remaining_xp := 0
+
+	# Collect XP already travelling to the bar before removing the particles.
+	for particle in particles:
+		if String(particle.get("kind", "")) == "xp":
+			remaining_xp += int(particle.get("amount", 0))
+
+	# Existing planned enemies are treated as killed. Caller summons do not
+	# count toward the authored wave budget and remain worth zero XP.
+	for enemy in enemies:
+		if bool(enemy.get("counts_for_wave", true)):
+			remaining_xp += int(enemy.get("xp_value", 0))
+
+	# Add the value of enemies that have not spawned yet.
+	for i in range(wave_spawned_count, wave_spawn_plan.size()):
+		remaining_xp += int(
+			wave_spawn_plan[i].get("threat_cost", 0)
+		)
+
+	enemies.clear()
+	bullets.clear()
+	particles.clear()
+	damage_numbers.clear()
+	pending_reactions.clear()
+	reaction_waves.clear()
+
+	locked_target_uid = -1
+	priority_mode_active = false
+	priority_typed_prefix = ""
+
+	wave_spawned_count = wave_spawn_plan.size()
+	wave_resolved_count = wave_spawn_plan.size()
+	wave_spawning = false
+
+	if remaining_xp > 0:
+		_grant_xp(remaining_xp)
+
+	_finish_wave()
+	_update_wave_ui()
+	_update_stats()
 
 
 # Priority enemies ------------------------------------------------------------
@@ -903,7 +1012,9 @@ func _update_enemies(delta: float) -> void:
 			enemy["position"] = pos
 			enemies[i] = enemy
 		else:
-			hp = maxf(0.0, hp - 14.0)
+			if not dev_god_mode:
+				hp = maxf(0.0, hp - 14.0)
+
 			_spawn_impact_particles(
 				pos,
 				Color(1.0, 0.28, 0.34),
