@@ -30,9 +30,9 @@ const WAVE_THREAT_BUDGETS := [
 	42,
 	68,
 	100,
-	145,
-	205,
-	285
+	160,
+	280,
+	440
 ]
 
 const MAX_TYPES_PER_WAVE := 3
