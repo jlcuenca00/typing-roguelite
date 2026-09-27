@@ -268,7 +268,7 @@ func _process(delta: float) -> void:
 				wave_spawning = false
 
 			if spawned_this_tick > 0:
-				spawn_timer = spawn_interval
+				spawn_timer = _next_spawn_delay()
 			else:
 				# The director is waiting on either a priority gate, boss gate,
 				# or the active-enemy safety cap.
@@ -920,10 +920,26 @@ func _spawn_interval_for_wave(wave_number: int) -> float:
 
 func _spawn_batch_for_wave(wave_number: int) -> int:
 	if wave_number >= 9:
-		return 3
+		return rng.randi_range(2, 3)
 	if wave_number >= 7:
-		return 2
+		return 2 if rng.randf() < 0.65 else 1
 	return 1
+
+
+func _next_spawn_delay() -> float:
+	var progress := 0.0
+	if not wave_spawn_plan.is_empty():
+		progress = clampf(
+			float(wave_spawned_count) / float(wave_spawn_plan.size()),
+			0.0,
+			1.0
+		)
+
+	# Each wave starts a touch calmer and compresses toward the back half.
+	# Small jitter prevents enemies from arriving on a metronome.
+	var pressure_mult := lerpf(1.10, 0.82, progress)
+	var jitter := rng.randf_range(0.86, 1.14)
+	return maxf(0.10, spawn_interval * pressure_mult * jitter)
 
 
 func _active_enemy_cap_for_wave(wave_number: int) -> int:
