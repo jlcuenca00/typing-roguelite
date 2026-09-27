@@ -157,3 +157,24 @@ Keep this log short. Record decisions, experiments, what worked, what failed, an
 - Full 10-wave playtest.
 - Record approximate run duration and peak active-enemy/particle counts from the debug panel.
 - Tune Wave 8-10 density, boss pressure, and final run duration from actual playtest data.
+
+
+### 2026-09-27 — Fix late-wave priority tails and excessive knockback
+
+**Changed**
+- Priority enemies are now capped by wave: none early, one in early priority waves, two in Waves 7-8, and up to three in Waves 9-10.
+- Late-wave rosters always keep Basic plus the two newest normal archetypes before adding priority archetypes.
+- Priority placement now stays within the middle portion of the wave, preserving normal enemies after the final priority threat.
+- When a priority enemy is already active, the director only pulls nearby normal enemies forward instead of draining the entire remaining normal tail.
+- Global knockback was reduced.
+- Elites resist most knockback and bosses are nearly knockback-immune.
+- Knockback velocity now decays faster.
+
+**Why**
+- Waves 8-10 were turning into a slow priority-only cleanup after the normal horde was exhausted.
+- Heavy knockback could push combo targets and the boss offscreen, undermining sticky targeting and readability.
+
+**Next**
+- Re-test Waves 8-10 and verify that normal enemies remain present around priority encounters.
+- Verify that normal targets stay onscreen during sustained combos and Overseer remains anchored in the arena.
+- Continue balance/performance tuning from the full-run test.
