@@ -44,13 +44,20 @@
 - [ ] Add boss.
 - [ ] Add 10-minute run pacing.
 
-## Phase 4 - Text Modes
+## Phase 4 - Permanent Progression
+- [ ] Add meta currency earned from runs.
+- [ ] Add permanent combat/utility upgrade trees.
+- [ ] Keep fresh-profile runs intentionally difficult.
+- [ ] Cap raw permanent power so typing skill and run builds still matter.
+- [ ] Add permanent unlock paths for weapons, mutations, characters, and Depths.
+
+## Phase 5 - Text Modes
 - [ ] Standard Words.
 - [ ] Narrative.
 - [ ] Context-sensitive narrative events.
 - [ ] Archive hooks.
 
-## Phase 5 - Prototype Review
+## Phase 6 - Prototype Review
 - [ ] Profile enemy/projectile performance.
 - [ ] Playtest typing feel at different WPM ranges.
 - [ ] Evaluate readability under late-run chaos.
