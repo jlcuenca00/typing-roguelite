@@ -1,6 +1,7 @@
 extends Node2D
 
 const CombatSystemScript = preload("res://scripts/combat/combat_system.gd")
+const ProjectileHits = preload("res://scripts/combat/projectile_hits.gd")
 
 const UPGRADES_PATH := "res://data/combat/upgrades.json"
 const ENEMIES_PATH := "res://data/combat/enemies.json"
@@ -21,7 +22,7 @@ const TYPING_LEFT_X := 48.0
 const TOTAL_WAVES := 10
 # Horde size and XP are authored separately: more bodies must not accelerate
 # upgrade income or react to player damage.
-const WAVE_THREAT_BUDGETS := [8, 14, 22, 34, 52, 80, 116, 184, 312, 484]
+const WAVE_THREAT_BUDGETS := [8, 18, 32, 52, 84, 136, 216, 340, 520, 760]
 const WAVE_XP_BUDGETS := [8, 12, 18, 28, 42, 68, 100, 160, 280, 440]
 
 const MAX_TYPES_PER_WAVE := 5
@@ -58,30 +59,8 @@ const BOSS_PHASE_THRESHOLDS := [0.66, 0.33]
 
 # Spawn pacing controls density only; waves still end by resolving their
 # authored threat plan, never by a timer.
-const WAVE_SPAWN_INTERVALS := [
-	0.82,
-	0.74,
-	0.66,
-	0.58,
-	0.50,
-	0.44,
-	0.39,
-	0.30,
-	0.22,
-	0.18
-]
-const WAVE_ACTIVE_CAPS := [
-	12,
-	16,
-	22,
-	30,
-	40,
-	52,
-	68,
-	88,
-	112,
-	140
-]
+const WAVE_SPAWN_INTERVALS := [0.82, 0.68, 0.56, 0.46, 0.38, 0.32, 0.27, 0.23, 0.19, 0.16]
+const WAVE_ACTIVE_CAPS := [12, 20, 30, 44, 60, 80, 104, 132, 164, 200]
 
 const MAX_VISUAL_PARTICLES := 520
 const MAX_DAMAGE_NUMBERS := 110
@@ -120,6 +99,8 @@ var particles: Array[Dictionary] = []
 var damage_numbers: Array[Dictionary] = []
 var pending_reactions: Array[Dictionary] = []
 var reaction_waves: Array[Dictionary] = []
+var lightning_arcs: Array[Dictionary] = []
+const MAX_LIGHTNING_ARCS := 96
 
 var spawn_timer := 0.0
 var spawn_interval := 0.95
@@ -245,6 +226,7 @@ func _process(delta: float) -> void:
 		_update_particles(delta)
 		_update_damage_numbers(delta)
 		_update_reaction_waves(delta)
+		_update_lightning_arcs(delta)
 		queue_redraw()
 		return
 
@@ -286,6 +268,7 @@ func _process(delta: float) -> void:
 	_update_bullets(delta)
 	_process_pending_reactions()
 	_update_reaction_waves(delta)
+	_update_lightning_arcs(delta)
 	_update_particles(delta)
 	_update_damage_numbers(delta)
 	_trim_visual_feedback()
@@ -294,6 +277,7 @@ func _process(delta: float) -> void:
 		not wave_spawning
 		and wave_resolved_count >= wave_spawn_plan.size()
 		and enemies.is_empty()
+		and pending_reactions.is_empty()
 		and not _has_pending_xp_particles()
 		and not wave_intermission
 	):
@@ -468,6 +452,7 @@ func _dev_perfect_clear_wave() -> void:
 	damage_numbers.clear()
 	pending_reactions.clear()
 	reaction_waves.clear()
+	lightning_arcs.clear()
 
 	locked_target_uid = -1
 	priority_mode_active = false
@@ -930,6 +915,13 @@ func _execute_attack(attack: Dictionary) -> void:
 		Color(1.0, 0.9, 0.5)
 	)
 
+	if String(attack.get("attack_type", "projectile")) == "chain":
+		_execute_chain_attack(attack, damage, projectile_color)
+		return
+
+	var targets: Array[int] = []
+	if count > 1 and bool(attack.get("split_targets", false)):
+		targets = _split_target_uids()
 	for i in range(count):
 		var angle := 0.0
 		if count > 1:
@@ -943,7 +935,9 @@ func _execute_attack(attack: Dictionary) -> void:
 			tags,
 			effects,
 			weapon_id,
-			projectile_color
+			projectile_color,
+			attack,
+			int(targets[i % targets.size()]) if not targets.is_empty() else -1
 		)
 
 
@@ -1008,6 +1002,7 @@ func _prepare_next_spawn_slot() -> bool:
 		return (
 			wave_resolved_count >= wave_spawn_plan.size() - 1
 			and enemies.is_empty()
+		and pending_reactions.is_empty()
 			and not _has_pending_xp_particles()
 		)
 
@@ -1545,12 +1540,14 @@ func _fire_at_nearest_enemy(
 	tags: Array,
 	effects: Array,
 	weapon_id: String,
-	projectile_color: Color
+	projectile_color: Color,
+	attack: Dictionary = {},
+	target_uid: int = -1
 ) -> void:
 	if enemies.is_empty():
 		return
 
-	var target_index := _get_locked_target_index()
+	var target_index := _get_enemy_index_by_uid(target_uid) if target_uid >= 0 else _get_locked_target_index()
 	if target_index < 0:
 		return
 
@@ -1566,8 +1563,12 @@ func _fire_at_nearest_enemy(
 		"tags": tags.duplicate(),
 		"effects": effects.duplicate(true),
 		"weapon_id": weapon_id,
-		"target_uid": locked_target_uid,
-		"strict_target": absf(spread) < 0.001,
+		"target_uid": int(enemies[target_index]["uid"]),
+		"strict_target": absf(spread) < 0.001 and int(attack.get("pierce", 0)) == 0,
+		"remaining_hits": 1 + int(attack.get("pierce", 0)),
+		"hit_uids": [],
+		"explosion_radius": float(attack.get("explosion_radius", 0.0)),
+		"explosion_ratio": float(attack.get("explosion_ratio", 0.0)),
 		"color": projectile_color
 	})
 
@@ -1575,81 +1576,132 @@ func _fire_at_nearest_enemy(
 func _update_bullets(delta: float) -> void:
 	for bullet_index in range(bullets.size() - 1, -1, -1):
 		var bullet := bullets[bullet_index]
-		bullet["position"] = Vector2(bullet["position"]) + Vector2(bullet["velocity"]) * delta
+		var start: Vector2 = bullet["position"]
+		# Sweep only the remaining lifetime, so slow frames cannot extend range.
+		var travel_time := minf(delta, maxf(float(bullet["life"]), 0.0))
+		var finish := start + Vector2(bullet["velocity"]) * travel_time
+		bullet["position"] = finish
 		bullet["life"] = float(bullet["life"]) - delta
-		var hit := false
-
-		for enemy_index in range(enemies.size() - 1, -1, -1):
-			if bool(enemies[enemy_index].get("priority", false)):
+		for hit in ProjectileHits.find_hits(start, finish, bullet, enemies):
+			var uid := int(hit["uid"])
+			var index := _get_enemy_index_by_uid(uid)
+			if index < 0 or bool(enemies[index].get("priority", false)):
 				continue
-
-			if bool(bullet.get("strict_target", false)):
-				var intended_uid := int(bullet.get("target_uid", -1))
-				if int(enemies[enemy_index].get("uid", -1)) != intended_uid:
-					continue
-
-			var enemy_pos: Vector2 = enemies[enemy_index]["position"]
-
-			var enemy_radius := float(
-				enemies[enemy_index].get("radius", ENEMY_RADIUS)
-			)
-			if Vector2(bullet["position"]).distance_squared_to(enemy_pos) <= pow(
-				enemy_radius + BULLET_RADIUS,
-				2
-			):
-				var enemy := enemies[enemy_index]
-				var damage := float(bullet["damage"])
-
-				var bulwark := _get_visible_priority_mechanic("shield")
-				if not bulwark.is_empty():
-					damage *= float(
-						bulwark.get("protected_damage_multiplier", 0.55)
-					)
-
-				enemy["hp"] = float(enemy["hp"]) - damage
-				enemy["time_since_hit"] = 0.0
-				enemy["flash"] = 0.075
-
-				var push_direction := (
-					enemy_pos - get_viewport_rect().size * 0.5
-				).normalized()
-				enemy["knockback"] = Vector2(
-					enemy["knockback"]
-				) + push_direction * 92.0 * _knockback_multiplier_for(enemy)
-
-				_spawn_impact_particles(
-					enemy_pos,
-					Color(1.0, 0.82, 0.42),
-					3
-				)
-				_spawn_damage_number(
-					enemy_pos,
-					int(round(damage))
-				)
-				_apply_attack_effects(
-					enemy,
-					bullet.get("effects", [])
-				)
-				_queue_matching_reactions(
-					enemy,
-					bullet.get("tags", []),
-					enemy_pos
-				)
-
-				_activate_boss_lock_if_needed(enemy, enemy_pos)
-
-				if float(enemy["hp"]) <= 0.0:
-					_kill_enemy(enemy_index, enemy_pos)
-				else:
-					enemies[enemy_index] = enemy
-
-				hit = true
+			var position: Vector2 = enemies[index]["position"]
+			_apply_combat_hit(uid, float(bullet["damage"]), bullet.get("tags", []),
+				bullet.get("effects", []), Color(1.0, 0.82, 0.42))
+			bullet["hit_uids"].append(uid)
+			bullet["remaining_hits"] = int(bullet["remaining_hits"]) - 1
+			if float(bullet.get("explosion_ratio", 0.0)) > 0.0:
+				# Queue splash after direct hits, preventing index invalidation or
+				# recursive bullet explosions. Elemental reactions remain separate.
+				pending_reactions.append({"position": position, "reaction": {
+					"id": "impact_blast", "name": "",
+					"area_radius": bullet["explosion_radius"],
+					"area_damage": float(bullet["damage"]) * float(bullet["explosion_ratio"]),
+					"color": "#ffad66", "tags": ["blast"]
+				}})
+			if int(bullet["remaining_hits"]) <= 0:
 				break
-
-		if hit or float(bullet["life"]) <= 0.0:
+		if int(bullet.get("remaining_hits", 1)) <= 0 or float(bullet["life"]) <= 0.0:
 			bullets.remove_at(bullet_index)
 		else:
 			bullets[bullet_index] = bullet
+
+
+func _apply_combat_hit(
+	uid: int, damage: float, tags: Array, effects: Array, color: Color,
+	push_origin: Vector2 = Vector2.INF, push_strength: float = 92.0
+) -> void:
+	var index := _get_enemy_index_by_uid(uid)
+	if index < 0 or bool(enemies[index].get("priority", false)):
+		return
+	var enemy := enemies[index]
+	var position: Vector2 = enemy["position"]
+	var bulwark := _get_visible_priority_mechanic("shield")
+	if not bulwark.is_empty():
+		damage *= float(bulwark.get("protected_damage_multiplier", 0.55))
+	enemy["hp"] = float(enemy["hp"]) - damage
+	enemy["time_since_hit"] = 0.0
+	enemy["flash"] = 0.075
+	var origin := get_viewport_rect().size * 0.5 if push_origin == Vector2.INF else push_origin
+	enemy["knockback"] = Vector2(enemy["knockback"]) + (
+		position - origin).normalized() * push_strength * _knockback_multiplier_for(enemy)
+	_spawn_impact_particles(position, color, 3)
+	_spawn_damage_number(position, int(round(damage)), color)
+	_apply_attack_effects(enemy, effects)
+	if not tags.is_empty():
+		_queue_matching_reactions(enemy, tags, position)
+	_activate_boss_lock_if_needed(enemy, position)
+	if float(enemy["hp"]) <= 0.0:
+		_kill_enemy(index, position)
+	else:
+		enemies[index] = enemy
+
+
+func _split_target_uids() -> Array[int]:
+	var result: Array[int] = []
+	var locked_index := _get_locked_target_index()
+	if locked_index < 0:
+		return result
+	result.append(int(enemies[locked_index]["uid"]))
+	var center := get_viewport_rect().size * 0.5
+	var candidates: Array[Dictionary] = []
+	for enemy in enemies:
+		var uid := int(enemy["uid"])
+		if uid == result[0] or bool(enemy.get("priority", false)):
+			continue
+		if get_viewport_rect().has_point(Vector2(enemy["position"])):
+			candidates.append({"uid": uid, "distance": center.distance_squared_to(enemy["position"])})
+	candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["distance"]) < float(b["distance"])
+	)
+	for candidate in candidates:
+		result.append(int(candidate["uid"]))
+	return result
+
+
+func _execute_chain_attack(attack: Dictionary, damage: float, color: Color) -> void:
+	var index := _get_locked_target_index()
+	if index < 0:
+		return
+	var uid := int(enemies[index]["uid"])
+	var origin := get_viewport_rect().size * 0.5
+	var visited: Array[int] = []
+	var reach := float(attack.get("chain_range", 150.0))
+	for jump in range(maxi(1, int(attack.get("chain_count", 1)))):
+		index = _get_enemy_index_by_uid(uid)
+		if index < 0:
+			break
+		var destination: Vector2 = enemies[index]["position"]
+		visited.append(uid)
+		if lightning_arcs.size() >= MAX_LIGHTNING_ARCS:
+			lightning_arcs.pop_front()
+		lightning_arcs.append({"start": origin, "finish": destination, "color": color, "life": 0.16})
+		_apply_combat_hit(uid, damage, attack.get("tags", []), attack.get("effects", []), color)
+		origin = destination
+		uid = -1
+		var nearest := reach * reach
+		for enemy in enemies:
+			var candidate_uid := int(enemy["uid"])
+			if visited.has(candidate_uid) or bool(enemy.get("priority", false)):
+				continue
+			var position: Vector2 = enemy["position"]
+			if not get_viewport_rect().has_point(position):
+				continue
+			var distance := origin.distance_squared_to(position)
+			if distance <= nearest:
+				nearest = distance
+				uid = candidate_uid
+		if uid < 0:
+			break
+
+
+func _update_lightning_arcs(delta: float) -> void:
+	for i in range(lightning_arcs.size() - 1, -1, -1):
+		lightning_arcs[i]["life"] = float(lightning_arcs[i]["life"]) - delta
+		if float(lightning_arcs[i]["life"]) <= 0.0:
+			lightning_arcs.remove_at(i)
 
 
 func _apply_attack_effects(enemy: Dictionary, bindings: Array) -> void:
@@ -1740,11 +1792,9 @@ func _process_pending_reactions() -> void:
 			reaction_color,
 			20
 		)
-		_spawn_combat_text(
-			center + Vector2(0.0, -22.0),
-			String(reaction.get("name", "REACTION")),
-			reaction_color
-		)
+		if not String(reaction.get("name", "")).is_empty():
+			_spawn_combat_text(center + Vector2(0.0, -22.0),
+				String(reaction["name"]), reaction_color)
 		_spawn_reaction_wave(
 			center,
 			radius,
@@ -1771,35 +1821,8 @@ func _process_pending_reactions() -> void:
 			if center.distance_squared_to(enemy_pos) > radius * radius:
 				continue
 
-			var enemy := enemies[i]
-			var applied_damage := damage
-			var bulwark := _get_visible_priority_mechanic("shield")
-			if not bulwark.is_empty():
-				applied_damage *= float(
-					bulwark.get("protected_damage_multiplier", 0.55)
-				)
-
-			enemy["hp"] = float(enemy["hp"]) - applied_damage
-			enemy["time_since_hit"] = 0.0
-			enemy["flash"] = 0.10
-
-			var push := (enemy_pos - center).normalized()
-			enemy["knockback"] = Vector2(
-				enemy["knockback"]
-			) + push * 145.0 * _knockback_multiplier_for(enemy)
-
-			_spawn_damage_number(
-				enemy_pos,
-				int(round(applied_damage)),
-				reaction_color
-			)
-
-			_activate_boss_lock_if_needed(enemy, enemy_pos)
-
-			if float(enemy["hp"]) <= 0.0:
-				_kill_enemy(i, enemy_pos)
-			else:
-				enemies[i] = enemy
+			_apply_combat_hit(int(enemies[i]["uid"]), damage,
+				reaction.get("tags", []), [], reaction_color, center, 145.0)
 
 
 func _spawn_reaction_wave(
@@ -1964,6 +1987,12 @@ func _roll_upgrade_choices(count: int) -> Array[Dictionary]:
 			candidates.append(upgrade.duplicate(true))
 
 	candidates.shuffle()
+	for i in range(candidates.size()):
+		if String(candidates[i].get("category", "")) == "crowd":
+			var crowd := candidates[i]
+			candidates.remove_at(i)
+			candidates.push_front(crowd)
+			break
 
 	var result: Array[Dictionary] = []
 	var used_first_letters: Dictionary = {}
@@ -2010,11 +2039,17 @@ func _upgrade_is_available(upgrade: Dictionary) -> bool:
 	if bool(upgrade.get("requires_missing_hp", false)) and hp >= max_hp:
 		return false
 
+	if String(upgrade.get("action", "")) == "effect_chance":
+		if combat.get_effect_binding_chance(String(upgrade.get("weapon_id", "")),
+			String(upgrade.get("effect_id", ""))) >= 1.0:
+			return false
+
 	if String(upgrade.get("action", "")) == "reaction_damage_mult":
-		var has_blast := combat.is_weapon_active("shotgun")
+		var has_blast := combat.is_weapon_active("shotgun") or int(upgrade_levels.get("pistol_explosion", 0)) > 0
 		var has_status := (
 			combat.get_effect_binding_chance("smg", "freeze") > 0.0
 			or combat.get_effect_binding_chance("pistol", "shock") > 0.0
+			or combat.is_weapon_active("arc_coil")
 		)
 		if not has_blast or not has_status:
 			return false
@@ -2110,11 +2145,13 @@ func _refresh_upgrade_cards() -> void:
 		if upgrade_error_time > 0.0 and upgrade_candidate_index < 0:
 			card.color = card.color.lerp(Color(0.34, 0.10, 0.12, 1.0), 0.35)
 
-		label.text = "[center][font_size=22][b]%s[/b][/font_size]\n\n%s\n\n[font_size=26][b]%s[/b][/font_size]\n[color=#7f8998]Taken: %d[/color][/center]" % [
+		label.text = "[center][font_size=22][b]%s[/b][/font_size]\n\n%s\n\n[font_size=26][b]%s[/b][/font_size]\n[color=#7f8998]%s | Rank %d/%d[/color][/center]" % [
 			String(upgrade.get("name", "Upgrade")),
 			String(upgrade.get("description", "")),
 			command_markup,
-			picks
+			String(upgrade.get("category", "power")).to_upper(),
+			picks + 1,
+			int(upgrade.get("max_picks", 1))
 		]
 
 
@@ -2169,6 +2206,10 @@ func _apply_upgrade(upgrade: Dictionary) -> void:
 				"projectile_count",
 				float(upgrade.get("amount", 1))
 			)
+
+		"weapon_stat_add":
+			combat.add_weapon_stat(weapon_id, String(upgrade.get("stat", "")),
+				float(upgrade.get("amount", 0.0)))
 
 		"weapon_spread_mult":
 			combat.multiply_weapon_stat(
@@ -3341,6 +3382,15 @@ func _draw() -> void:
 					14,
 					word_color
 				)
+
+	for arc in lightning_arcs:
+		var arc_color: Color = arc["color"]
+		arc_color.a = clampf(float(arc["life"]) / 0.16, 0.0, 1.0)
+		var start: Vector2 = arc["start"]
+		var finish: Vector2 = arc["finish"]
+		var tangent := (finish - start).orthogonal().normalized()
+		var middle := start.lerp(finish, 0.5) + tangent * 7.0
+		draw_polyline(PackedVector2Array([start, middle, finish]), arc_color, 2.0)
 
 	for bullet in bullets:
 		var pos: Vector2 = bullet["position"]

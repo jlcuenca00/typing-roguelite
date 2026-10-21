@@ -7,7 +7,8 @@
       "command": "draw",
       "action": "unlock_weapon",
       "weapon_id": "pistol",
-      "max_picks": 1
+      "max_picks": 1,
+      "category": "power"
     },
     {
       "id": "unlock_shotgun",
@@ -16,82 +17,90 @@
       "command": "blast",
       "action": "unlock_weapon",
       "weapon_id": "shotgun",
-      "max_picks": 1
+      "max_picks": 1,
+      "category": "crowd"
     },
     {
       "id": "smg_damage",
       "name": "Hotter Feed",
-      "description": "SMG damage +25%.",
+      "description": "SMG damage +40%.",
       "command": "heat",
       "action": "weapon_damage_mult",
       "weapon_id": "smg",
-      "factor": 1.25,
+      "factor": 1.4,
       "requires_weapon": "smg",
-      "max_picks": 3
+      "max_picks": 3,
+      "category": "power"
     },
     {
       "id": "pistol_damage",
       "name": "Heavy Chamber",
-      "description": "Pistol damage +30%.",
+      "description": "Pistol damage +50%.",
       "command": "magnum",
       "action": "weapon_damage_mult",
       "weapon_id": "pistol",
-      "factor": 1.30,
+      "factor": 1.5,
       "requires_weapon": "pistol",
-      "max_picks": 3
+      "max_picks": 3,
+      "category": "power"
     },
     {
       "id": "shotgun_pellet",
-      "name": "Extra Pellet",
-      "description": "Shotgun fires +1 pellet.",
+      "name": "Buckshot Barrage",
+      "description": "Shotgun fires +3 pellets per word.",
       "command": "shell",
       "action": "weapon_projectile_add",
       "weapon_id": "shotgun",
-      "amount": 1,
+      "amount": 3,
       "requires_weapon": "shotgun",
-      "max_picks": 3
+      "max_picks": 3,
+      "category": "crowd"
     },
     {
       "id": "cryo_rounds",
       "name": "Cryo Rounds",
-      "description": "SMG hits gain +14% chance to Freeze.",
+      "description": "SMG Freeze chance +25%.",
       "command": "frost",
       "action": "effect_chance",
       "weapon_id": "smg",
       "effect_id": "freeze",
-      "chance_delta": 0.14,
+      "chance_delta": 0.25,
       "requires_weapon": "smg",
-      "max_picks": 4
+      "max_picks": 4,
+      "category": "power"
     },
     {
       "id": "charged_chamber",
       "name": "Charged Chamber",
-      "description": "Pistol hits gain +20% chance to Shock.",
+      "description": "Pistol Shock chance +35%.",
       "command": "volt",
       "action": "effect_chance",
       "weapon_id": "pistol",
       "effect_id": "shock",
-      "chance_delta": 0.20,
+      "chance_delta": 0.35,
       "requires_weapon": "pistol",
-      "max_picks": 4
+      "max_picks": 3,
+      "category": "power"
     },
     {
       "id": "reaction_amplifier",
       "name": "Reaction Amplifier",
-      "description": "Elemental reaction damage +25%.",
+      "description": "Shatter and Overload damage +50%.",
       "command": "chain",
       "action": "reaction_damage_mult",
-      "factor": 1.25,
-      "max_picks": 3
+      "factor": 1.5,
+      "max_picks": 3,
+      "category": "power"
     },
     {
       "id": "global_damage",
       "name": "Overclock",
-      "description": "All weapon damage +12%.",
+      "description": "All weapon damage +25%.",
       "command": "rush",
       "action": "global_damage_mult",
-      "factor": 1.12,
-      "max_picks": 4
+      "factor": 1.25,
+      "max_picks": 4,
+      "category": "power"
     },
     {
       "id": "reinforced_core",
@@ -101,7 +110,8 @@
       "action": "max_hp",
       "amount": 15,
       "heal": 15,
-      "max_picks": 4
+      "max_picks": 4,
+      "category": "support"
     },
     {
       "id": "field_repair",
@@ -111,7 +121,8 @@
       "action": "heal",
       "amount": 35,
       "requires_missing_hp": true,
-      "max_picks": 99
+      "max_picks": 99,
+      "category": "support"
     },
     {
       "id": "spread_control",
@@ -122,7 +133,119 @@
       "weapon_id": "shotgun",
       "factor": 0.82,
       "requires_weapon": "shotgun",
-      "max_picks": 3
+      "max_picks": 3,
+      "category": "power"
+    },
+    {
+      "id": "smg_pierce",
+      "name": "Needle Rounds",
+      "description": "SMG bullets pass through +2 enemies.",
+      "command": "needle",
+      "action": "weapon_stat_add",
+      "weapon_id": "smg",
+      "stat": "pierce",
+      "amount": 2,
+      "requires_weapon": "smg",
+      "max_picks": 3,
+      "category": "crowd"
+    },
+    {
+      "id": "smg_multishot",
+      "name": "Split Feed",
+      "description": "Fire +1 SMG bullet per key, aimed at separate enemies.",
+      "command": "split",
+      "action": "weapon_projectile_add",
+      "weapon_id": "smg",
+      "amount": 1,
+      "requires_weapon": "smg",
+      "max_picks": 2,
+      "category": "crowd"
+    },
+    {
+      "id": "pistol_pierce",
+      "name": "Rail Rounds",
+      "description": "Pistol shots pass through +3 enemies.",
+      "command": "rail",
+      "action": "weapon_stat_add",
+      "weapon_id": "pistol",
+      "stat": "pierce",
+      "amount": 3,
+      "requires_weapon": "pistol",
+      "max_picks": 2,
+      "category": "crowd"
+    },
+    {
+      "id": "pistol_explosion",
+      "name": "Burst Rounds",
+      "description": "Pistol hits explode for +65% shot damage in a nearby area.",
+      "command": "burst",
+      "action": "weapon_stat_add",
+      "weapon_id": "pistol",
+      "stat": "explosion_ratio",
+      "amount": 0.65,
+      "requires_weapon": "pistol",
+      "max_picks": 3,
+      "category": "crowd"
+    },
+    {
+      "id": "unlock_arc_coil",
+      "name": "Arc Coil",
+      "description": "Each word chains lightning through up to 4 enemies.",
+      "command": "arc",
+      "action": "unlock_weapon",
+      "weapon_id": "arc_coil",
+      "max_picks": 1,
+      "category": "crowd"
+    },
+    {
+      "id": "arc_chain",
+      "name": "Long Circuit",
+      "description": "Arc Coil reaches +2 enemies per word.",
+      "command": "link",
+      "action": "weapon_stat_add",
+      "weapon_id": "arc_coil",
+      "stat": "chain_count",
+      "amount": 2,
+      "requires_weapon": "arc_coil",
+      "max_picks": 3,
+      "category": "crowd"
+    },
+    {
+      "id": "arc_damage",
+      "name": "High Voltage",
+      "description": "Arc Coil damage +45%.",
+      "command": "surge",
+      "action": "weapon_damage_mult",
+      "weapon_id": "arc_coil",
+      "factor": 1.45,
+      "requires_weapon": "arc_coil",
+      "max_picks": 3,
+      "category": "power"
+    },
+    {
+      "id": "shotgun_damage",
+      "name": "Heavy Buckshot",
+      "description": "Shotgun pellet damage +45%.",
+      "command": "heavy",
+      "action": "weapon_damage_mult",
+      "weapon_id": "shotgun",
+      "factor": 1.45,
+      "requires_weapon": "shotgun",
+      "max_picks": 3,
+      "category": "power"
+    },
+    {
+      "id": "incendiary",
+      "name": "Incendiary Shells",
+      "description": "Shotgun Burn chance +35%. Burning stacks up to 3 times.",
+      "command": "ignite",
+      "action": "effect_chance",
+      "weapon_id": "shotgun",
+      "effect_id": "burn",
+      "chance_delta": 0.35,
+      "requires_weapon": "shotgun",
+      "max_picks": 3,
+      "category": "power"
     }
   ]
 }

@@ -40,6 +40,7 @@ Prototype weapons:
 - SMG -> correct key
 - Pistol -> word complete
 - Shotgun -> word complete
+- Arc Coil -> word complete (chained direct hits)
 
 Weapon definitions do not hard-code elemental effects. This keeps "weapon" separate from "effect."
 
@@ -129,3 +130,27 @@ Sentence Complete
 ```
 
 The goal is for content growth to happen mostly through data and reusable systems rather than branching weapon code.
+
+
+## Crowd-clearing run upgrades
+
+Attack descriptors can carry `pierce`, `explosion_radius`, and `explosion_ratio`. The main scene resolves shared damage, statuses, Bulwark protection, and boss phase gates for projectile, chain, and splash hits through `_apply_combat_hit`.
+
+`projectile_hits.gd` performs swept segment-circle collision and sorts hits by travel order. Each bullet tracks hit UIDs and a remaining hit count, so piercing cannot damage the same enemy repeatedly or skip enemies during a slow frame. Split Feed aims SMG projectiles at distinct visible normal targets when available. In-flight shots whose original target died can hit surviving enemies along their path.
+
+The Arc Coil uses `attack_type: chain`, `chain_count`, and `chain_range`. Each enemy is hit at most once per trigger, with a nearest-neighbor search after each jump. Intrinsic weapon effects combine with upgrade attachments. Lightning visuals expire after 0.16 seconds and have a fixed feedback cap.
+
+Explosive pistol hits queue splash after direct-hit resolution. Splash carries the Blast tag and can trigger Shatter/Overload; those reactions consume statuses and do not emit more projectile explosions. Waves wait for pending damage to drain before ending. Priority enemies and shielded boss phases remain immune to these normal damage paths.
+
+Upgrade definitions include a category and maximum ranks. Each choice screen reserves one slot for an available crowd upgrade, while keeping command initials distinct and respecting weapon prerequisites and rank/effect-chance caps. The cards show the rank being offered. All changes reset with the run.
+
+## Headless checks
+
+From the repository root:
+
+```sh
+godot --headless --path game --script res://tests/horde_balance.gd
+godot --headless --path game --script res://tests/crowd_combat.gd
+```
+
+The first checks 1,000 wave plans and fixed HP/XP invariants. The second checks projectile geometry, piercing, targeting, chains, splash/reactions, shields, boss gates, upgrade choices, reset behavior, and a stationary 200-enemy integration fixture. These checks validate mechanics; they do not establish real-player difficulty or visual readability.

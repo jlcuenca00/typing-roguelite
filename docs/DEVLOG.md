@@ -219,3 +219,20 @@ Keep this log short. Record decisions, experiments, what worked, what failed, an
 
 **Next**
 - Playtest waves 6-10 for horde feel, damage throughput, and readable effects before changing crowd-clearing upgrades or adding the first story encounter.
+
+
+### 2026-10-22 — Crowd-clearing run builds and bigger hordes
+
+**Changed**
+- Added Needle Rounds, Split Feed, Rail Rounds, Burst Rounds, Arc Coil, Long Circuit, High Voltage, Heavy Buckshot, and Incendiary Shells.
+- Increased shotgun pellet gains and weapon/global/status/reaction upgrade strength.
+- Guaranteed an eligible crowd-clearing choice and displayed offered rank/category.
+- Added swept piercing collision, separate-target SMG fire, chained lightning, and queued Blast splash with shared damage protection rules.
+- Increased authored threat budgets, arrival cadence, and active caps while preserving fixed enemy HP and total wave XP.
+
+**Validation**
+- Godot 4.5.1: headless editor import, 1,000 wave plans, and crowd-combat integration checks passed, including a stationary 200-enemy fixture.
+- Hands-on feel and effects readability still need playtesting. No assets or implementation code were copied from the reference demo.
+
+**Next**
+- Playtest several run builds and larger waves. Permanent progression, fresh-profile difficulty tuning, and the first story encounter remain later work.

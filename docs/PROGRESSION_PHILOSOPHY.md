@@ -97,7 +97,9 @@ These are ceilings, not guaranteed rewards. Wave 1 is the onboarding exception a
 This preserves the desirable feedback loop: stronger builds do not make the director cheat harder; they simply kill more of the same planned threat budget and therefore recover more of its available XP.
 
 
-## Fixed HP Horde Balance — 2026-10-22
+## Initial Fixed HP Horde Balance — 2026-10-22
+
+The following records the initial pass; horde counts and pacing are superseded by the run-upgrade pass below. Fixed HP and XP rules still apply.
 
 Enemy HP is authored in `enemies.json` as `base_hp * hp_multiplier` and never increases with wave number or elapsed time. Basic HP is 44; Runner 31.68; Brute 103.4; Jammer 68.2; Bulwark 81.4; Caller 72.6; summoned Swarmer 14.28. Elites keep their additional 1.55 multiplier and regeneration. The Overseer has a dedicated base of 84.5 (591.5 final HP), preserving its previous wave-10 strength before the old elapsed-time bonus.
 
@@ -107,3 +109,15 @@ Perfect-clear XP: 8, 12, 18, 28, 42, 68, 100, 160, 280, 440.
 Double-spawn chances ramp from 15% at wave 5 to 60% at wave 8; waves 9-10 retain batches of 2-3. Wave 7 now uses a 45% double-spawn chance at a nominal 0.39-second interval, softening its batch transition while introducing its first elite. Existing active-enemy caps, priority gates, and boss finale gate still apply.
 
 Next playtest: compare waves 6-8 at the same typing speed, confirm quicker ordinary kills and a fuller screen, then check waves 9-10 for crowd-clearing capacity and visual readability. This is a first balance pass, not a claim that the run is fully tuned.
+
+
+## Run-upgrade and Horde Pass — 2026-10-22
+
+Run upgrades now offer piercing, split SMG fire, explosive pistol shots, Arc Coil chain lightning, larger shotgun barrages, and stronger damage/status/reaction picks. At least one crowd-clearing option appears whenever an eligible one remains. Permanent progression and final difficulty tuning are deferred.
+
+Threat budgets: 8, 18, 32, 52, 84, 136, 216, 340, 520, 760.
+Nominal spawn intervals: 0.82, 0.68, 0.56, 0.46, 0.38, 0.32, 0.27, 0.23, 0.19, 0.16 seconds.
+Active caps: 12, 20, 30, 44, 60, 80, 104, 132, 164, 200.
+Perfect-clear XP totals remain 8, 12, 18, 28, 42, 68, 100, 160, 280, 440. HP remains fixed per archetype; enemy count still depends on composition and summon activity.
+
+The next hands-on test should judge whether run upgrades produce satisfying clearing and build variety with these larger hordes. The eventual goal of making waves 3-4 very difficult on a profile without permanent upgrades is a later tuning target, not a constraint imposed during this pass.
