@@ -71,7 +71,8 @@ func build_attacks(trigger_id: String, context: Dictionary = {}) -> Array[Dictio
 		attack["weapon_id"] = weapon_id
 		attack["trigger"] = trigger_id
 		attack["context"] = context.duplicate(true)
-		attack["effects"] = effect_bindings.get(weapon_id, []).duplicate(true)
+		attack["effects"] = weapon.get("effects", []).duplicate(true)
+		attack["effects"].append_array(effect_bindings.get(weapon_id, []).duplicate(true))
 		attacks.append(attack)
 
 	return attacks

@@ -6,8 +6,14 @@
     "projectile_count": 1,
     "projectile_speed": 760.0,
     "spread_radians": 0.0,
-    "tags": ["kinetic"],
-    "color": "#ffd978"
+    "tags": [
+      "kinetic"
+    ],
+    "color": "#ffd978",
+    "pierce": 0,
+    "explosion_radius": 72.0,
+    "explosion_ratio": 0.0,
+    "split_targets": true
   },
   "pistol": {
     "name": "Pistol",
@@ -16,8 +22,13 @@
     "projectile_count": 1,
     "projectile_speed": 880.0,
     "spread_radians": 0.0,
-    "tags": ["kinetic"],
-    "color": "#fff0a6"
+    "tags": [
+      "kinetic"
+    ],
+    "color": "#fff0a6",
+    "pierce": 0,
+    "explosion_radius": 72.0,
+    "explosion_ratio": 0.0
   },
   "shotgun": {
     "name": "Shotgun",
@@ -26,7 +37,30 @@
     "projectile_count": 5,
     "projectile_speed": 690.0,
     "spread_radians": 0.28,
-    "tags": ["blast"],
-    "color": "#ffad66"
+    "tags": [
+      "blast"
+    ],
+    "color": "#ffad66",
+    "pierce": 0,
+    "explosion_radius": 72.0,
+    "explosion_ratio": 0.0
+  },
+  "arc_coil": {
+    "name": "Arc Coil",
+    "trigger": "word_complete",
+    "attack_type": "chain",
+    "damage": 22.0,
+    "chain_count": 4,
+    "chain_range": 150.0,
+    "tags": [
+      "electric"
+    ],
+    "color": "#81cfff",
+    "effects": [
+      {
+        "effect_id": "shock",
+        "chance": 0.65
+      }
+    ]
   }
 }

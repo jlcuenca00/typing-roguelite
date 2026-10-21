@@ -23,10 +23,10 @@ The first prototype intentionally stays small. It is not the full game.
 
 - 1 arena
 - 1 player
-- 3 weapons
+- 4 weapons
 - 3 effects
 - 2 elemental reactions
-- 10-15 upgrades
+- 21 run upgrades
 - 3 priority enemy types
 - 1 elite
 - 1 boss

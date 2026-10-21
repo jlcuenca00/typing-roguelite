@@ -3,21 +3,33 @@
     {
       "id": "shatter",
       "name": "SHATTER",
-      "requires_effects": ["freeze"],
-      "requires_tags": ["blast"],
-      "consume_effects": ["freeze"],
+      "requires_effects": [
+        "freeze"
+      ],
+      "requires_tags": [
+        "blast"
+      ],
+      "consume_effects": [
+        "freeze"
+      ],
       "area_radius": 82.0,
-      "area_damage": 18.0,
+      "area_damage": 32.0,
       "color": "#d7f7ff"
     },
     {
       "id": "overload",
       "name": "OVERLOAD",
-      "requires_effects": ["shock"],
-      "requires_tags": ["blast"],
-      "consume_effects": ["shock"],
+      "requires_effects": [
+        "shock"
+      ],
+      "requires_tags": [
+        "blast"
+      ],
+      "consume_effects": [
+        "shock"
+      ],
       "area_radius": 96.0,
-      "area_damage": 22.0,
+      "area_damage": 40.0,
       "color": "#ff5ce1"
     }
   ]
