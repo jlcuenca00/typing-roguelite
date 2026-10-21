@@ -9,7 +9,8 @@
     "weight": 1.0,
     "priority": false,
     "spawn_only": false,
-    "color": "#f25561"
+    "color": "#f25561",
+    "base_hp": 44.0
   },
   "runner": {
     "name": "Runner",
@@ -21,7 +22,8 @@
     "weight": 0.78,
     "priority": false,
     "spawn_only": false,
-    "color": "#ff965c"
+    "color": "#ff965c",
+    "base_hp": 44.0
   },
   "jammer": {
     "name": "Jammer",
@@ -35,7 +37,8 @@
     "spawn_only": false,
     "mechanic": "jam",
     "player_damage_multiplier": 0.72,
-    "color": "#b17cff"
+    "color": "#b17cff",
+    "base_hp": 44.0
   },
   "brute": {
     "name": "Brute",
@@ -47,7 +50,8 @@
     "weight": 0.52,
     "priority": false,
     "spawn_only": false,
-    "color": "#cf6576"
+    "color": "#cf6576",
+    "base_hp": 44.0
   },
   "bulwark": {
     "name": "Bulwark",
@@ -61,7 +65,8 @@
     "spawn_only": false,
     "mechanic": "shield",
     "protected_damage_multiplier": 0.55,
-    "color": "#65d9e8"
+    "color": "#65d9e8",
+    "base_hp": 44.0
   },
   "caller": {
     "name": "Caller",
@@ -76,7 +81,8 @@
     "mechanic": "summon",
     "summon_interval": 4.5,
     "summon_count": 2,
-    "color": "#e58bff"
+    "color": "#e58bff",
+    "base_hp": 44.0
   },
   "overseer": {
     "name": "Overseer",
@@ -93,7 +99,8 @@
     "boss_stop_radius": 145.0,
     "boss_attack_interval": 3.2,
     "boss_attack_damage": 8.0,
-    "color": "#ffcf70"
+    "color": "#ffcf70",
+    "base_hp": 84.5
   },
   "swarmer": {
     "name": "Swarmer",
@@ -105,6 +112,7 @@
     "weight": 0.0,
     "priority": false,
     "spawn_only": true,
-    "color": "#ffb36b"
+    "color": "#ffb36b",
+    "base_hp": 34.0
   }
 }

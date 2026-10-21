@@ -204,3 +204,18 @@ Keep this log short. Record decisions, experiments, what worked, what failed, an
 - Full Wave 1-10 test focused on late density and priority readability.
 - If the horde still feels too evenly distributed, add temporary directional spawn-pressure bias.
 - After pacing is stable, expand run upgrades toward more behavior-changing synergies rather than mostly numeric increases.
+
+
+### 2026-10-22 — Fixed HP and larger hordes
+
+**Changed**
+- Authored fixed HP per enemy type; removed wave/time HP inflation, including summoned Swarmers.
+- Increased wave threat budgets after onboarding and introduced gradual batch spawning from wave 5.
+- Preserved perfect-clear XP totals with proportional per-enemy XP assignment, including the development clear-wave shortcut.
+- Retained tougher elite variants, regeneration, priority mechanics, active caps, and the boss finale.
+
+**Why**
+- A wave-7 playtest showed enemies outlasting damage. Ordinary kills should stay satisfying as pressure grows through body count and composition.
+
+**Next**
+- Playtest waves 6-10 for horde feel, damage throughput, and readable effects before changing crowd-clearing upgrades or adding the first story encounter.

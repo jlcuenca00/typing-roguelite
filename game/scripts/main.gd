@@ -19,21 +19,10 @@ const TYPING_LINE_HEIGHT := 36.0
 const TYPING_LEFT_X := 48.0
 
 const TOTAL_WAVES := 10
-# Each wave gets a fixed threat/XP budget. Enemy count is derived from which
-# archetypes the seeded wave plan spends that budget on. Player damage never
-# changes the budget or spawns extra enemies.
-const WAVE_THREAT_BUDGETS := [
-	8,
-	12,
-	18,
-	28,
-	42,
-	68,
-	100,
-	160,
-	280,
-	440
-]
+# Horde size and XP are authored separately: more bodies must not accelerate
+# upgrade income or react to player damage.
+const WAVE_THREAT_BUDGETS := [8, 14, 22, 34, 52, 80, 116, 184, 312, 484]
+const WAVE_XP_BUDGETS := [8, 12, 18, 28, 42, 68, 100, 160, 280, 440]
 
 const MAX_TYPES_PER_WAVE := 5
 const PRIORITY_CAPS := [
@@ -71,13 +60,13 @@ const BOSS_PHASE_THRESHOLDS := [0.66, 0.33]
 # authored threat plan, never by a timer.
 const WAVE_SPAWN_INTERVALS := [
 	0.82,
-	0.76,
-	0.68,
-	0.60,
-	0.52,
+	0.74,
+	0.66,
+	0.58,
+	0.50,
 	0.44,
-	0.36,
-	0.28,
+	0.39,
+	0.30,
 	0.22,
 	0.18
 ]
@@ -470,7 +459,7 @@ func _dev_perfect_clear_wave() -> void:
 	# Add the value of enemies that have not spawned yet.
 	for i in range(wave_spawned_count, wave_spawn_plan.size()):
 		remaining_xp += int(
-			wave_spawn_plan[i].get("threat_cost", 0)
+			wave_spawn_plan[i].get("xp_value", 0)
 		)
 
 	enemies.clear()
@@ -970,9 +959,9 @@ func _spawn_interval_for_wave(wave_number: int) -> float:
 func _spawn_batch_for_wave(wave_number: int) -> int:
 	if wave_number >= 9:
 		return rng.randi_range(2, 3)
-	if wave_number >= 7:
-		return 2 if rng.randf() < 0.65 else 1
-	return 1
+	# Introduce batches before elites arrive instead of doubling arrivals at 7.
+	var double_chance := clampf(float(wave_number - 4) * 0.15, 0.0, 0.60)
+	return 2 if rng.randf() < double_chance else 1
 
 
 func _next_spawn_delay() -> float:
@@ -1081,18 +1070,17 @@ func _spawn_enemy() -> void:
 				rng.randf_range(-margin, viewport_size.y + margin)
 			)
 
-	var wave_scale := float(current_wave - 1)
 	# Movement speed is now primarily an archetype property. Later-wave pressure
 	# comes from density, composition, elites, and priority mechanics rather than
 	# globally accelerating every enemy.
 	var base_speed := rng.randf_range(40.0, 60.0)
-	var base_hp := 44.0 + wave_scale * 4.5 + minf(elapsed * 0.05, 14.0)
+	var base_hp := float(spec.get("base_hp", 44.0))
 	var is_elite := bool(spec.get("elite", false))
 	var is_boss := bool(spec.get("boss", false))
 	var radius := ENEMY_RADIUS * float(spec.get("radius_multiplier", 1.0))
 	var hp_value := base_hp * float(spec.get("hp_multiplier", 1.0))
 	var speed := base_speed * float(spec.get("speed_multiplier", 1.0))
-	var threat_cost := int(spec.get("threat_cost", 1))
+	var xp_value := int(spec.get("xp_value", 0))
 
 	if is_elite:
 		radius *= ELITE_RADIUS_MULTIPLIER
@@ -1139,7 +1127,7 @@ func _spawn_enemy() -> void:
 		"speed": speed,
 		"hp": hp_value,
 		"max_hp": hp_value,
-		"xp_value": threat_cost,
+		"xp_value": xp_value,
 		"radius": radius,
 		"base_color": base_color,
 		"flash": 0.0,
@@ -1414,14 +1402,13 @@ func _spawn_summoned_swarmers(origin: Vector2, count: int) -> void:
 		return
 
 	var definition: Dictionary = enemy_definitions["swarmer"]
-	var wave_scale := float(current_wave - 1)
 
 	for i in range(maxi(count, 0)):
 		var angle := rng.randf_range(0.0, TAU)
 		var spawn_pos := origin + Vector2.RIGHT.rotated(angle) * rng.randf_range(14.0, 30.0)
 		var uid := next_enemy_uid
 		next_enemy_uid += 1
-		var base_hp := 34.0 + wave_scale * 3.0
+		var base_hp := float(definition.get("base_hp", 34.0))
 		var base_speed := rng.randf_range(48.0, 62.0)
 		var color := Color.from_string(
 			String(definition.get("color", "#ffb36b")),
@@ -2546,8 +2533,27 @@ func _prepare_wave_spawn_plan(wave_number: int) -> void:
 	if not boss_spec.is_empty():
 		wave_spawn_plan.append(boss_spec)
 
+	_assign_wave_xp(wave_number)
+
 	wave_spawned_count = 0
 	wave_resolved_count = 0
+
+
+func _assign_wave_xp(wave_number: int) -> void:
+	# Cumulative rounding preserves the exact wave XP budget, including when
+	# individual cheap enemies are worth zero XP. Contact losses still lose XP.
+	var index := clampi(wave_number - 1, 0, WAVE_XP_BUDGETS.size() - 1)
+	var xp_budget := int(WAVE_XP_BUDGETS[index])
+	var threat_budget := _wave_threat_budget(wave_number)
+	var cumulative_threat := 0
+	var assigned_xp := 0
+	for i in range(wave_spawn_plan.size()):
+		var spec: Dictionary = wave_spawn_plan[i]
+		cumulative_threat += int(spec.get("threat_cost", 1))
+		var target_xp := int(round(float(cumulative_threat * xp_budget) / float(threat_budget)))
+		spec["xp_value"] = target_xp - assigned_xp
+		wave_spawn_plan[i] = spec
+		assigned_xp = target_xp
 
 
 func _has_pending_xp_particles() -> bool:
