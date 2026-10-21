@@ -81,9 +81,9 @@ Waves use a fixed **threat budget**, not a fixed enemy count and not dynamic sca
 
 At the start of a wave, the game spends that wave's budget on enemy archetypes. Cheap enemies consume little budget and produce a larger horde; tougher archetypes consume more budget and therefore reduce the raw body count. The plan is generated before the wave plays, so dealing more damage never causes the director to secretly spawn extra enemies.
 
-An enemy's threat cost is also its normal XP value. This links difficulty and potential income: clearing more of the authored wave converts more of its threat budget into XP, while enemies that reach the player take their XP with them.
+Horde threat and XP use separate authored budgets. Each planned enemy receives a proportional integer share of the wave XP budget using cumulative rounding. Perfect clears preserve the original XP totals even as body counts increase; enemies that reach the player take their assigned XP with them. Summoned Swarmers remain worth zero XP.
 
-Only a small recent roster is eligible in a wave. New archetypes enter as the run advances, allowing composition to escalate separately from raw HP scaling.
+Only a small recent roster is eligible in a wave. New archetypes enter as the run advances, allowing composition to escalate while HP stays fixed per archetype.
 
 The current perfect-clear XP curve is deliberately shaped so the prototype trends approximately:
 
@@ -95,3 +95,15 @@ The current perfect-clear XP curve is deliberately shaped so the prototype trend
 These are ceilings, not guaranteed rewards. Wave 1 is the onboarding exception and always produces the first level-up. Late-wave budgets are intentionally more aggressive so the prototype can eventually test the dense, chaotic payoff without making early waves overwhelming.
 
 This preserves the desirable feedback loop: stronger builds do not make the director cheat harder; they simply kill more of the same planned threat budget and therefore recover more of its available XP.
+
+
+## Fixed HP Horde Balance — 2026-10-22
+
+Enemy HP is authored in `enemies.json` as `base_hp * hp_multiplier` and never increases with wave number or elapsed time. Basic HP is 44; Runner 31.68; Brute 103.4; Jammer 68.2; Bulwark 81.4; Caller 72.6; summoned Swarmer 14.28. Elites keep their additional 1.55 multiplier and regeneration. The Overseer has a dedicated base of 84.5 (591.5 final HP), preserving its previous wave-10 strength before the old elapsed-time bonus.
+
+Threat budgets: 8, 14, 22, 34, 52, 80, 116, 184, 312, 484.
+Perfect-clear XP: 8, 12, 18, 28, 42, 68, 100, 160, 280, 440.
+
+Double-spawn chances ramp from 15% at wave 5 to 60% at wave 8; waves 9-10 retain batches of 2-3. Wave 7 now uses a 45% double-spawn chance at a nominal 0.39-second interval, softening its batch transition while introducing its first elite. Existing active-enemy caps, priority gates, and boss finale gate still apply.
+
+Next playtest: compare waves 6-8 at the same typing speed, confirm quicker ordinary kills and a fuller screen, then check waves 9-10 for crowd-clearing capacity and visual readability. This is a first balance pass, not a claim that the run is fully tuned.
