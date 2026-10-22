@@ -236,3 +236,21 @@ Keep this log short. Record decisions, experiments, what worked, what failed, an
 
 **Next**
 - Playtest several run builds and larger waves. Permanent progression, fresh-profile difficulty tuning, and the first story encounter remain later work.
+
+
+### 2026-10-22 — Increasing damage and coverage ranks
+
+**Changed**
+- Run damage picks now grow more powerful at later ranks instead of repeating a fixed percentage.
+- Later piercing, Split Feed, shotgun pellet, chain-count, and explosive-round ranks grant larger increments.
+- Higher chain and explosion ranks add jump range or blast radius for crowd coverage.
+- Cards preview the exact next-rank benefit through the same resolver used by application.
+
+**Scope**
+- Horde budgets, spawn pacing, caps, enemy HP, wave XP, and health rules stay at the previous baseline. No between-wave healing or permanent upgrades.
+
+**Validation**
+- Godot headless crowd-combat, rank-progression, and 1,000-plan horde checks passed. The rank checks include no healing through actual finish/continue paths and boss locks under a late damage build.
+
+**Next**
+- Playtest late-wave damage and coverage at the existing horde size.
