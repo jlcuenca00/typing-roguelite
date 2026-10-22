@@ -23,26 +23,54 @@
     {
       "id": "smg_damage",
       "name": "Hotter Feed",
-      "description": "SMG damage +40%.",
+      "description": "SMG damage +50%.",
       "command": "heat",
       "action": "weapon_damage_mult",
       "weapon_id": "smg",
-      "factor": 1.4,
+      "factor": 1.5,
       "requires_weapon": "smg",
       "max_picks": 3,
-      "category": "power"
+      "category": "power",
+      "ranks": [
+        {
+          "factor": 1.5,
+          "description": "SMG damage +50%."
+        },
+        {
+          "factor": 1.65,
+          "description": "SMG damage +65%."
+        },
+        {
+          "factor": 1.8,
+          "description": "SMG damage +80%."
+        }
+      ]
     },
     {
       "id": "pistol_damage",
       "name": "Heavy Chamber",
-      "description": "Pistol damage +50%.",
+      "description": "Pistol damage +60%.",
       "command": "magnum",
       "action": "weapon_damage_mult",
       "weapon_id": "pistol",
-      "factor": 1.5,
+      "factor": 1.6,
       "requires_weapon": "pistol",
       "max_picks": 3,
-      "category": "power"
+      "category": "power",
+      "ranks": [
+        {
+          "factor": 1.6,
+          "description": "Pistol damage +60%."
+        },
+        {
+          "factor": 1.8,
+          "description": "Pistol damage +80%."
+        },
+        {
+          "factor": 2.0,
+          "description": "Pistol damage +100%."
+        }
+      ]
     },
     {
       "id": "shotgun_pellet",
@@ -54,7 +82,21 @@
       "amount": 3,
       "requires_weapon": "shotgun",
       "max_picks": 3,
-      "category": "crowd"
+      "category": "crowd",
+      "ranks": [
+        {
+          "amount": 3,
+          "description": "Shotgun fires +3 pellets per word."
+        },
+        {
+          "amount": 4,
+          "description": "Shotgun fires +4 pellets per word."
+        },
+        {
+          "amount": 5,
+          "description": "Shotgun fires +5 pellets per word."
+        }
+      ]
     },
     {
       "id": "cryo_rounds",
@@ -85,22 +127,54 @@
     {
       "id": "reaction_amplifier",
       "name": "Reaction Amplifier",
-      "description": "Shatter and Overload damage +50%.",
+      "description": "Shatter and Overload damage +60%.",
       "command": "chain",
       "action": "reaction_damage_mult",
-      "factor": 1.5,
+      "factor": 1.6,
       "max_picks": 3,
-      "category": "power"
+      "category": "power",
+      "ranks": [
+        {
+          "factor": 1.6,
+          "description": "Shatter and Overload damage +60%."
+        },
+        {
+          "factor": 1.85,
+          "description": "Shatter and Overload damage +85%."
+        },
+        {
+          "factor": 2.1,
+          "description": "Shatter and Overload damage +110%."
+        }
+      ]
     },
     {
       "id": "global_damage",
       "name": "Overclock",
-      "description": "All weapon damage +25%.",
+      "description": "All weapon damage +30%.",
       "command": "rush",
       "action": "global_damage_mult",
-      "factor": 1.25,
+      "factor": 1.3,
       "max_picks": 4,
-      "category": "power"
+      "category": "power",
+      "ranks": [
+        {
+          "factor": 1.3,
+          "description": "All weapon damage +30%."
+        },
+        {
+          "factor": 1.4,
+          "description": "All weapon damage +40%."
+        },
+        {
+          "factor": 1.5,
+          "description": "All weapon damage +50%."
+        },
+        {
+          "factor": 1.6,
+          "description": "All weapon damage +60%."
+        }
+      ]
     },
     {
       "id": "reinforced_core",
@@ -147,7 +221,21 @@
       "amount": 2,
       "requires_weapon": "smg",
       "max_picks": 3,
-      "category": "crowd"
+      "category": "crowd",
+      "ranks": [
+        {
+          "amount": 2,
+          "description": "SMG bullets pass through +2 enemies."
+        },
+        {
+          "amount": 3,
+          "description": "SMG bullets pass through +3 enemies."
+        },
+        {
+          "amount": 4,
+          "description": "SMG bullets pass through +4 enemies."
+        }
+      ]
     },
     {
       "id": "smg_multishot",
@@ -159,7 +247,17 @@
       "amount": 1,
       "requires_weapon": "smg",
       "max_picks": 2,
-      "category": "crowd"
+      "category": "crowd",
+      "ranks": [
+        {
+          "amount": 1,
+          "description": "Fire +1 SMG bullet per key, aimed at separate enemies."
+        },
+        {
+          "amount": 2,
+          "description": "Fire +2 SMG bullets per key, aimed at separate enemies."
+        }
+      ]
     },
     {
       "id": "pistol_pierce",
@@ -172,12 +270,22 @@
       "amount": 3,
       "requires_weapon": "pistol",
       "max_picks": 2,
-      "category": "crowd"
+      "category": "crowd",
+      "ranks": [
+        {
+          "amount": 3,
+          "description": "Pistol shots pass through +3 enemies."
+        },
+        {
+          "amount": 4,
+          "description": "Pistol shots pass through +4 enemies."
+        }
+      ]
     },
     {
       "id": "pistol_explosion",
       "name": "Burst Rounds",
-      "description": "Pistol hits explode for +65% shot damage in a nearby area.",
+      "description": "Pistol hits explode for +65% shot damage.",
       "command": "burst",
       "action": "weapon_stat_add",
       "weapon_id": "pistol",
@@ -185,7 +293,34 @@
       "amount": 0.65,
       "requires_weapon": "pistol",
       "max_picks": 3,
-      "category": "crowd"
+      "category": "crowd",
+      "ranks": [
+        {
+          "amount": 0.65,
+          "description": "Pistol hits explode for +65% shot damage.",
+          "stat_bonuses": []
+        },
+        {
+          "amount": 0.95,
+          "description": "Pistol hits explode for +95% shot damage. Blast radius +14.",
+          "stat_bonuses": [
+            {
+              "stat": "explosion_radius",
+              "amount": 14
+            }
+          ]
+        },
+        {
+          "amount": 1.3,
+          "description": "Pistol hits explode for +130% shot damage. Blast radius +18.",
+          "stat_bonuses": [
+            {
+              "stat": "explosion_radius",
+              "amount": 18
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "unlock_arc_coil",
@@ -208,31 +343,86 @@
       "amount": 2,
       "requires_weapon": "arc_coil",
       "max_picks": 3,
-      "category": "crowd"
+      "category": "crowd",
+      "ranks": [
+        {
+          "amount": 2,
+          "description": "Arc Coil reaches +2 enemies per word.",
+          "stat_bonuses": []
+        },
+        {
+          "amount": 3,
+          "description": "Arc Coil reaches +3 enemies per word. Jump range +20.",
+          "stat_bonuses": [
+            {
+              "stat": "chain_range",
+              "amount": 20
+            }
+          ]
+        },
+        {
+          "amount": 4,
+          "description": "Arc Coil reaches +4 enemies per word. Jump range +30.",
+          "stat_bonuses": [
+            {
+              "stat": "chain_range",
+              "amount": 30
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "arc_damage",
       "name": "High Voltage",
-      "description": "Arc Coil damage +45%.",
+      "description": "Arc Coil damage +55%.",
       "command": "surge",
       "action": "weapon_damage_mult",
       "weapon_id": "arc_coil",
-      "factor": 1.45,
+      "factor": 1.55,
       "requires_weapon": "arc_coil",
       "max_picks": 3,
-      "category": "power"
+      "category": "power",
+      "ranks": [
+        {
+          "factor": 1.55,
+          "description": "Arc Coil damage +55%."
+        },
+        {
+          "factor": 1.75,
+          "description": "Arc Coil damage +75%."
+        },
+        {
+          "factor": 1.95,
+          "description": "Arc Coil damage +95%."
+        }
+      ]
     },
     {
       "id": "shotgun_damage",
       "name": "Heavy Buckshot",
-      "description": "Shotgun pellet damage +45%.",
+      "description": "Shotgun pellet damage +55%.",
       "command": "heavy",
       "action": "weapon_damage_mult",
       "weapon_id": "shotgun",
-      "factor": 1.45,
+      "factor": 1.55,
       "requires_weapon": "shotgun",
       "max_picks": 3,
-      "category": "power"
+      "category": "power",
+      "ranks": [
+        {
+          "factor": 1.55,
+          "description": "Shotgun pellet damage +55%."
+        },
+        {
+          "factor": 1.75,
+          "description": "Shotgun pellet damage +75%."
+        },
+        {
+          "factor": 1.95,
+          "description": "Shotgun pellet damage +95%."
+        }
+      ]
     },
     {
       "id": "incendiary",

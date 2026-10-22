@@ -1984,7 +1984,7 @@ func _roll_upgrade_choices(count: int) -> Array[Dictionary]:
 	for raw_upgrade in upgrade_definitions:
 		var upgrade: Dictionary = raw_upgrade
 		if _upgrade_is_available(upgrade):
-			candidates.append(upgrade.duplicate(true))
+			candidates.append(_upgrade_for_next_rank(upgrade))
 
 	candidates.shuffle()
 	for i in range(candidates.size()):
@@ -2013,6 +2013,18 @@ func _roll_upgrade_choices(count: int) -> Array[Dictionary]:
 			break
 
 	return result
+
+
+func _upgrade_for_next_rank(upgrade: Dictionary) -> Dictionary:
+	var resolved := upgrade.duplicate(true)
+	var ranks: Array = upgrade.get("ranks", [])
+	if not ranks.is_empty():
+		var picks := int(upgrade_levels.get(String(upgrade.get("id", "")), 0))
+		var rank: Dictionary = ranks[clampi(picks, 0, ranks.size() - 1)]
+		resolved.merge(rank, true)
+	# Choices are snapshots; resolving them again must not stack or switch ranks.
+	resolved.erase("ranks")
+	return resolved
 
 
 func _upgrade_is_available(upgrade: Dictionary) -> bool:
@@ -2182,6 +2194,7 @@ func _choose_upgrade(index: int) -> void:
 
 
 func _apply_upgrade(upgrade: Dictionary) -> void:
+	upgrade = _upgrade_for_next_rank(upgrade)
 	var action := String(
 		upgrade.get("action", "")
 	)
@@ -2250,6 +2263,10 @@ func _apply_upgrade(upgrade: Dictionary) -> void:
 				max_hp,
 				hp + float(upgrade.get("amount", 0.0))
 			)
+
+	for raw_bonus in upgrade.get("stat_bonuses", []):
+		var bonus: Dictionary = raw_bonus
+		combat.add_weapon_stat(weapon_id, String(bonus["stat"]), float(bonus["amount"]))
 
 	_update_stats()
 

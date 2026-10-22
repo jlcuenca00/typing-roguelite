@@ -154,3 +154,12 @@ godot --headless --path game --script res://tests/crowd_combat.gd
 ```
 
 The first checks 1,000 wave plans and fixed HP/XP invariants. The second checks projectile geometry, piercing, targeting, chains, splash/reactions, shields, boss gates, upgrade choices, reset behavior, and a stationary 200-enemy integration fixture. These checks validate mechanics; they do not establish real-player difficulty or visual readability.
+
+
+## Increasing upgrade ranks
+
+Upgrade definitions may provide a `ranks` array of overrides. `_upgrade_for_next_rank` reads the current pick count and creates a detached offer snapshot with its exact description and values. `_apply_upgrade` resolves raw definitions through the same helper; already-resolved offers are idempotent. Each ranked definition has exactly `max_picks` entries.
+
+Optional per-rank `stat_bonuses` add secondary weapon stats after the main action. Higher Long Circuit ranks add jump range, and higher Burst Rounds ranks add blast radius. Damage, coverage, and secondary stats are earned only by upgrade picks; wave transitions do not grant attack modifiers or healing.
+
+`godot --headless --path game --script res://tests/upgrade_ranks.gd` checks rank previews/application, caps, cumulative stats, boss phase protection, run reset, and no healing on wave completion/continuation.
