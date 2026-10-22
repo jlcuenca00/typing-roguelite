@@ -28,7 +28,8 @@
     "color": "#fff0a6",
     "pierce": 0,
     "explosion_radius": 72.0,
-    "explosion_ratio": 0.0
+    "explosion_ratio": 0.0,
+    "split_targets": true
   },
   "shotgun": {
     "name": "Shotgun",

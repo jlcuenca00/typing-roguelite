@@ -2,6 +2,7 @@ extends Node2D
 
 const CombatSystemScript = preload("res://scripts/combat/combat_system.gd")
 const ProjectileHits = preload("res://scripts/combat/projectile_hits.gd")
+const HordeFormation = preload("res://scripts/combat/horde_formation.gd")
 
 const UPGRADES_PATH := "res://data/combat/upgrades.json"
 const ENEMIES_PATH := "res://data/combat/enemies.json"
@@ -22,7 +23,7 @@ const TYPING_LEFT_X := 48.0
 const TOTAL_WAVES := 10
 # Horde size and XP are authored separately: more bodies must not accelerate
 # upgrade income or react to player damage.
-const WAVE_THREAT_BUDGETS := [8, 18, 32, 52, 84, 136, 216, 340, 520, 760]
+const WAVE_THREAT_BUDGETS := [8, 22, 44, 76, 124, 196, 308, 476, 720, 1040]
 const WAVE_XP_BUDGETS := [8, 12, 18, 28, 42, 68, 100, 160, 280, 440]
 
 const MAX_TYPES_PER_WAVE := 5
@@ -57,10 +58,11 @@ const BOSS_WAVE := 10
 const BOSS_ID := "overseer"
 const BOSS_PHASE_THRESHOLDS := [0.66, 0.33]
 
-# Spawn pacing controls density only; waves still end by resolving their
-# authored threat plan, never by a timer.
-const WAVE_SPAWN_INTERVALS := [0.82, 0.68, 0.56, 0.46, 0.38, 0.32, 0.27, 0.23, 0.19, 0.16]
-const WAVE_ACTIVE_CAPS := [12, 20, 30, 44, 60, 80, 104, 132, 164, 200]
+# Whole formations enter together, followed by a gap between pulses. These
+# timers schedule hordes, not individual enemies. Capacity/gates hold a pulse.
+const WAVE_HORDE_SIZES := [8, 12, 18, 26, 36, 48, 64, 80, 100, 120]
+const WAVE_HORDE_GAPS := [2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.0, 4.0, 4.0]
+const WAVE_ACTIVE_CAPS := [16, 32, 52, 80, 116, 160, 212, 272, 336, 400]
 
 const MAX_VISUAL_PARTICLES := 520
 const MAX_DAMAGE_NUMBERS := 110
@@ -103,7 +105,11 @@ var lightning_arcs: Array[Dictionary] = []
 const MAX_LIGHTNING_ARCS := 96
 
 var spawn_timer := 0.0
-var spawn_interval := 0.95
+var spawn_interval := 2.8
+var horde_positions: Array[Vector2] = []
+var horde_slot := 0
+var horde_pulse_index := 0
+var horde_speed := 50.0
 var elapsed := 0.0
 var error_flash := 0.0
 var player_recoil := 0.0
@@ -236,33 +242,7 @@ func _process(delta: float) -> void:
 	shake_time = maxf(shake_time - delta, 0.0)
 
 	if wave_spawning:
-		spawn_timer -= delta
-
-		if spawn_timer <= 0.0:
-			var spawned_this_tick := 0
-			var batch_size := _spawn_batch_for_wave(current_wave)
-
-			while (
-				spawned_this_tick < batch_size
-				and wave_spawned_count < wave_spawn_plan.size()
-				and enemies.size() < _active_enemy_cap_for_wave(current_wave)
-			):
-				if not _prepare_next_spawn_slot():
-					break
-
-				_spawn_enemy()
-				wave_spawned_count += 1
-				spawned_this_tick += 1
-
-			if wave_spawned_count >= wave_spawn_plan.size():
-				wave_spawning = false
-
-			if spawned_this_tick > 0:
-				spawn_timer = _next_spawn_delay()
-			else:
-				# The director is waiting on either a priority gate, boss gate,
-				# or the active-enemy safety cap.
-				spawn_timer = 0.12
+		_update_horde_spawning(delta)
 
 	_update_enemies(delta)
 	_update_bullets(delta)
@@ -458,6 +438,8 @@ func _dev_perfect_clear_wave() -> void:
 	priority_mode_active = false
 	priority_typed_prefix = ""
 
+	horde_positions.clear()
+	horde_slot = 0
 	wave_spawned_count = wave_spawn_plan.size()
 	wave_resolved_count = wave_spawn_plan.size()
 	wave_spawning = false
@@ -942,20 +924,44 @@ func _execute_attack(attack: Dictionary) -> void:
 
 
 func _spawn_interval_for_wave(wave_number: int) -> float:
-	var index := clampi(
-		wave_number - 1,
-		0,
-		WAVE_SPAWN_INTERVALS.size() - 1
-	)
-	return float(WAVE_SPAWN_INTERVALS[index])
+	return float(WAVE_HORDE_GAPS[clampi(wave_number - 1, 0, WAVE_HORDE_GAPS.size() - 1)])
 
 
-func _spawn_batch_for_wave(wave_number: int) -> int:
-	if wave_number >= 9:
-		return rng.randi_range(2, 3)
-	# Introduce batches before elites arrive instead of doubling arrivals at 7.
-	var double_chance := clampf(float(wave_number - 4) * 0.15, 0.0, 0.60)
-	return 2 if rng.randf() < double_chance else 1
+func _horde_size_for_wave(wave_number: int) -> int:
+	return int(WAVE_HORDE_SIZES[clampi(wave_number - 1, 0, WAVE_HORDE_SIZES.size() - 1)])
+
+
+func _update_horde_spawning(delta: float) -> void:
+	spawn_timer -= delta
+	if spawn_timer > 0.0:
+		return
+	if wave_spawned_count >= wave_spawn_plan.size():
+		wave_spawning = false
+		horde_positions.clear()
+		return
+	if horde_slot >= horde_positions.size():
+		var count := mini(_horde_size_for_wave(current_wave), wave_spawn_plan.size() - wave_spawned_count)
+		# Every third later pulse attacks from two opposite fronts.
+		var fronts := 2 if current_wave >= 6 and horde_pulse_index % 3 == 2 else 1
+		horde_positions = HordeFormation.entry_positions(count, get_viewport_rect().size, rng, fronts)
+		horde_slot = 0
+		horde_pulse_index += 1
+		horde_speed = rng.randf_range(46.0, 54.0)
+	while horde_slot < horde_positions.size() and enemies.size() < _active_enemy_cap_for_wave(current_wave):
+		if not _prepare_next_spawn_slot():
+			break
+		var boss := bool(wave_spawn_plan[wave_spawned_count].get("boss", false))
+		_spawn_enemy(Vector2.INF if boss else horde_positions[horde_slot], horde_speed)
+		wave_spawned_count += 1
+		horde_slot += 1
+	if wave_spawned_count >= wave_spawn_plan.size():
+		wave_spawning = false
+		horde_positions.clear()
+	elif horde_slot >= horde_positions.size():
+		spawn_timer = _next_spawn_delay()
+	else:
+		# Keep the remainder of this formation intact while a gate/cap clears.
+		spawn_timer = 0.12
 
 
 func _next_spawn_delay() -> float:
@@ -1002,7 +1008,7 @@ func _prepare_next_spawn_slot() -> bool:
 		return (
 			wave_resolved_count >= wave_spawn_plan.size() - 1
 			and enemies.is_empty()
-		and pending_reactions.is_empty()
+			and pending_reactions.is_empty()
 			and not _has_pending_xp_particles()
 		)
 
@@ -1033,7 +1039,7 @@ func _prepare_next_spawn_slot() -> bool:
 	return false
 
 
-func _spawn_enemy() -> void:
+func _spawn_enemy(formation_position: Vector2 = Vector2.INF, formation_speed: float = -1.0) -> void:
 	if wave_spawned_count < 0 or wave_spawned_count >= wave_spawn_plan.size():
 		return
 
@@ -1065,10 +1071,13 @@ func _spawn_enemy() -> void:
 				rng.randf_range(-margin, viewport_size.y + margin)
 			)
 
+	if formation_position != Vector2.INF:
+		position = formation_position
+
 	# Movement speed is now primarily an archetype property. Later-wave pressure
 	# comes from density, composition, elites, and priority mechanics rather than
 	# globally accelerating every enemy.
-	var base_speed := rng.randf_range(40.0, 60.0)
+	var base_speed := formation_speed if formation_speed > 0.0 else rng.randf_range(40.0, 60.0)
 	var base_hp := float(spec.get("base_hp", 44.0))
 	var is_elite := bool(spec.get("elite", false))
 	var is_boss := bool(spec.get("boss", false))
@@ -1987,30 +1996,42 @@ func _roll_upgrade_choices(count: int) -> Array[Dictionary]:
 			candidates.append(_upgrade_for_next_rank(upgrade))
 
 	candidates.shuffle()
-	for i in range(candidates.size()):
-		if String(candidates[i].get("category", "")) == "crowd":
-			var crowd := candidates[i]
-			candidates.remove_at(i)
-			candidates.push_front(crowd)
-			break
-
 	var result: Array[Dictionary] = []
 	var used_first_letters: Dictionary = {}
-
-	for upgrade in candidates:
-		var command := String(upgrade.get("command", "")).to_lower()
-		if command.is_empty():
-			continue
-
-		var first := command.substr(0, 1)
-		if used_first_letters.has(first):
-			continue
-
-		result.append(upgrade)
-		used_first_letters[first] = true
-
-		if result.size() >= count:
-			break
+	# Reserve a compatible pair before filling the last slot. A shared command
+	# initial must not accidentally remove all damage choices from the offer.
+	if count >= 2:
+		for crowd in candidates:
+			if String(crowd.get("category", "")) != "crowd":
+				continue
+			for damage in candidates:
+				if String(damage.get("category", "")) != "damage":
+					continue
+				var crowd_initial := String(crowd["command"]).left(1)
+				var damage_initial := String(damage["command"]).left(1)
+				if crowd_initial == damage_initial:
+					continue
+				result.append(crowd)
+				result.append(damage)
+				used_first_letters[crowd_initial] = true
+				used_first_letters[damage_initial] = true
+				break
+			if result.size() >= 2:
+				break
+	var fill_categories: Array = ["any"] if result.size() >= 2 else ["crowd", "damage", "any"]
+	for category in fill_categories:
+		for upgrade in candidates:
+			if result.size() >= count:
+				return result
+			if category != "any" and String(upgrade.get("category", "")) != category:
+				continue
+			var command := String(upgrade.get("command", "")).to_lower()
+			if command.is_empty() or used_first_letters.has(command.left(1)):
+				continue
+			result.append(upgrade)
+			used_first_letters[command.left(1)] = true
+			if category != "any":
+				break
 
 	return result
 
@@ -2035,6 +2056,10 @@ func _upgrade_is_available(upgrade: Dictionary) -> bool:
 	if picks >= max_picks:
 		return false
 
+	for prerequisite in upgrade.get("requires_upgrades", []):
+		if int(upgrade_levels.get(String(prerequisite), 0)) <= 0:
+			return false
+
 	var required_weapon := String(
 		upgrade.get("requires_weapon", "")
 	)
@@ -2056,7 +2081,7 @@ func _upgrade_is_available(upgrade: Dictionary) -> bool:
 			String(upgrade.get("effect_id", ""))) >= 1.0:
 			return false
 
-	if String(upgrade.get("action", "")) == "reaction_damage_mult":
+	if String(upgrade.get("action", "")) in ["reaction_damage_mult", "reaction_radius_mult"]:
 		var has_blast := combat.is_weapon_active("shotgun") or int(upgrade_levels.get("pistol_explosion", 0)) > 0
 		var has_status := (
 			combat.get_effect_binding_chance("smg", "freeze") > 0.0
@@ -2242,6 +2267,9 @@ func _apply_upgrade(upgrade: Dictionary) -> void:
 			combat.multiply_reaction_damage(
 				float(upgrade.get("factor", 1.0))
 			)
+
+		"reaction_radius_mult":
+			combat.multiply_reaction_radius(float(upgrade.get("factor", 1.0)))
 
 		"global_damage_mult":
 			combat.multiply_global_damage(
@@ -2595,6 +2623,9 @@ func _prepare_wave_spawn_plan(wave_number: int) -> void:
 
 	wave_spawned_count = 0
 	wave_resolved_count = 0
+	horde_positions.clear()
+	horde_slot = 0
+	horde_pulse_index = 0
 
 
 func _assign_wave_xp(wave_number: int) -> void:

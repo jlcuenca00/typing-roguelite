@@ -163,3 +163,16 @@ Upgrade definitions may provide a `ranks` array of overrides. `_upgrade_for_next
 Optional per-rank `stat_bonuses` add secondary weapon stats after the main action. Higher Long Circuit ranks add jump range, and higher Burst Rounds ranks add blast radius. Damage, coverage, and secondary stats are earned only by upgrade picks; wave transitions do not grant attack modifiers or healing.
 
 `godot --headless --path game --script res://tests/upgrade_ranks.gd` checks rank previews/application, caps, cumulative stats, boss phase protection, run reset, and no healing on wave completion/continuation.
+
+
+## Horde formations and damage offers
+
+The director now releases formations rather than one-to-three independently scattered enemies per spawn tick. `horde_formation.gd` generates compact rows outside one screen edge; every third pulse from wave 6 onward uses opposite fronts. A formation shares a base movement speed, with archetype multipliers preserving Runner/Brute identities. Pulse sizes grow from 8 to 120; the normal gap is approximately 3-4 seconds with pacing jitter. A timer schedules the next group, not each member.
+
+The current pulse retains its entry positions and cursor when an active cap or priority/boss gate blocks spawning. Resume it before generating another pulse. Finishing or development-clearing a wave resets pulse state; the boss remains a separate finale after the authored horde, summons, queued damage, and XP particles resolve.
+
+Upgrade offers reserve both a crowd card and a damage card when a compatible pair is eligible, then fill the remaining slot. Shared command initials cannot silently remove the damage slot. Four new weapon-specific payload cards add base damage, Echo Chamber adds pistol projectiles, and Drill Shot adds shotgun piercing. Wide Detonation requires Burst Rounds, while Reaction Bloom requires an actual reaction-capable build.
+
+Flat payload additions apply before weapon multipliers and then global damage. Reaction Bloom multiplies Shatter/Overload radius; its multiplier resets with the loadout. Explosive and reaction radius remain separate stats.
+
+Run `godot --headless --path game --script res://tests/horde_pulses.gd` for formation geometry, same-update group spawning, gaps, capacity/priority/boss waits, a 25-enemy Shatter cluster, damage offers, payload composition, Echo targeting, prerequisites, and reaction-radius reset checks.
