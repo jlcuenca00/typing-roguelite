@@ -121,3 +121,19 @@ Active caps: 12, 20, 30, 44, 60, 80, 104, 132, 164, 200.
 Perfect-clear XP totals remain 8, 12, 18, 28, 42, 68, 100, 160, 280, 440. HP remains fixed per archetype; enemy count still depends on composition and summon activity.
 
 The next hands-on test should judge whether run upgrades produce satisfying clearing and build variety with these larger hordes. The eventual goal of making waves 3-4 very difficult on a profile without permanent upgrades is a later tuning target, not a constraint imposed during this pass.
+
+
+## Clustered Horde Pulses — 2026-10-22
+
+The previous run-upgrade pass still emitted individual enemies in tiny batches from random locations. That did not create enough local density for crowd reactions. Its spawn cadence and threat figures above are superseded by clustered formations.
+
+- Bodies per pulse by wave: 8, 12, 18, 26, 36, 48, 64, 80, 100, 120.
+- Threat budgets: 8, 22, 44, 76, 124, 196, 308, 476, 720, 1040.
+- Active caps: 16, 32, 52, 80, 116, 160, 212, 272, 336, 400.
+- Base gaps between pulses: 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.0, 4.0, 4.0 seconds.
+
+Pulses approach in compact rows from a shared front, with occasional two-front surrounds in later waves. They are subject to the existing safety cap, priority limits, and boss finale gate. Actual body counts still depend on archetype composition; perfect-clear XP and fixed HP are unchanged. No automatic healing is introduced.
+
+The reference demo's `run_defaults.json` includes surround-pulse count/gap/share settings and `weapon_upgrade.json` includes weapon/global upgrade curves. These readable data files informed the direction, not an assertion that the demo's engine implementation was available or reproduced. Its assets and code are not imported.
+
+There are now 29 run cards, including 11 explicitly categorized as damage. Each offer reserves one eligible damage choice and one compatible crowd choice. Bigger payloads amplify the existing damage ranks, while wider explosions and reactions make packed enemies useful for synergies. Permanent upgrades and final difficulty tuning remain deferred.

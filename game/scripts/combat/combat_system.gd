@@ -16,6 +16,7 @@ var effect_bindings: Dictionary = {}
 var weapon_modifiers: Dictionary = {}
 var global_damage_multiplier := 1.0
 var reaction_damage_multiplier := 1.0
+var reaction_radius_multiplier := 1.0
 
 
 func load_definitions(loadout_id: String = "starter") -> bool:
@@ -42,6 +43,7 @@ func equip_loadout(loadout_id: String) -> bool:
 	weapon_modifiers.clear()
 	global_damage_multiplier = 1.0
 	reaction_damage_multiplier = 1.0
+	reaction_radius_multiplier = 1.0
 
 	for weapon_id in loadout.get("weapons", []):
 		if weapons.has(weapon_id):
@@ -116,6 +118,10 @@ func multiply_reaction_damage(factor: float) -> void:
 	reaction_damage_multiplier *= factor
 
 
+func multiply_reaction_radius(factor: float) -> void:
+	reaction_radius_multiplier *= factor
+
+
 func add_or_increase_effect_binding(weapon_id: String, effect_id: String, chance_delta: float) -> void:
 	var bindings: Array = effect_bindings.get(weapon_id, []).duplicate(true)
 
@@ -164,6 +170,7 @@ func resolve_reactions(active_effects: Dictionary, incoming_tags: Array) -> Arra
 
 		var resolved_reaction := reaction.duplicate(true)
 		resolved_reaction["area_damage"] = float(resolved_reaction.get("area_damage", 0.0)) * reaction_damage_multiplier
+		resolved_reaction["area_radius"] = float(resolved_reaction.get("area_radius", 0.0)) * reaction_radius_multiplier
 		resolved.append(resolved_reaction)
 
 	return resolved
@@ -179,16 +186,16 @@ func _apply_weapon_modifiers(attack: Dictionary, weapon_id: String) -> void:
 	var multipliers: Dictionary = modifiers.get("multipliers", {})
 	var additions: Dictionary = modifiers.get("additions", {})
 
-	for stat in multipliers.keys():
-		if attack.has(stat):
-			attack[stat] = float(attack[stat]) * float(multipliers[stat])
-
+	# Flat payload is part of the weapon's base, so damage multipliers amplify it.
 	for stat in additions.keys():
 		if attack.has(stat):
 			if attack[stat] is int:
 				attack[stat] = int(attack[stat]) + int(round(float(additions[stat])))
 			else:
 				attack[stat] = float(attack[stat]) + float(additions[stat])
+	for stat in multipliers.keys():
+		if attack.has(stat):
+			attack[stat] = float(attack[stat]) * float(multipliers[stat])
 
 
 func _dictionary_has_all(source: Dictionary, required: Array) -> bool:

@@ -254,3 +254,21 @@ Keep this log short. Record decisions, experiments, what worked, what failed, an
 
 **Next**
 - Playtest late-wave damage and coverage at the existing horde size.
+
+
+### 2026-10-22 — Actual horde pulses and more damage cards
+
+**Changed**
+- Replaced 1-3 scattered arrivals with compact formations of 8-120 bodies released together; later pulses can arrive from opposite fronts.
+- Increased total wave threat and active caps, retaining fixed enemy HP, wave XP, priority gates, and the boss finale.
+- Added Powder Load, Dense Slugs, Iron Shot, Live Current, Echo Chamber, Drill Shot, Wide Detonation, and Reaction Bloom (29 run cards total).
+- Reserved a damage card alongside the crowd card; added base payloads that compose with weapon/global multipliers and broader reaction coverage.
+
+**Reference**
+- Reviewed the supplied demo's horde definitions, surround-pulse run settings, and upgrade curves. No demo engine source or assets were incorporated.
+
+**Validation**
+- Godot headless formation/pulse, combat, upgrade-rank, and 1,000-plan horde suites passed. The pulse suite checks same-update packs, gaps, retained cap/gate waits, opposite fronts, and a 25-enemy Shatter clear.
+
+**Next**
+- Playtest reaction payoff, pack readability, and performance in waves 7-10. Health rules and permanent progression remain unchanged.

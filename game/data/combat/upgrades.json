@@ -30,7 +30,7 @@
       "factor": 1.5,
       "requires_weapon": "smg",
       "max_picks": 3,
-      "category": "power",
+      "category": "damage",
       "ranks": [
         {
           "factor": 1.5,
@@ -56,7 +56,7 @@
       "factor": 1.6,
       "requires_weapon": "pistol",
       "max_picks": 3,
-      "category": "power",
+      "category": "damage",
       "ranks": [
         {
           "factor": 1.6,
@@ -132,7 +132,7 @@
       "action": "reaction_damage_mult",
       "factor": 1.6,
       "max_picks": 3,
-      "category": "power",
+      "category": "damage",
       "ranks": [
         {
           "factor": 1.6,
@@ -156,7 +156,7 @@
       "action": "global_damage_mult",
       "factor": 1.3,
       "max_picks": 4,
-      "category": "power",
+      "category": "damage",
       "ranks": [
         {
           "factor": 1.3,
@@ -382,7 +382,7 @@
       "factor": 1.55,
       "requires_weapon": "arc_coil",
       "max_picks": 3,
-      "category": "power",
+      "category": "damage",
       "ranks": [
         {
           "factor": 1.55,
@@ -408,7 +408,7 @@
       "factor": 1.55,
       "requires_weapon": "shotgun",
       "max_picks": 3,
-      "category": "power",
+      "category": "damage",
       "ranks": [
         {
           "factor": 1.55,
@@ -436,6 +436,217 @@
       "requires_weapon": "shotgun",
       "max_picks": 3,
       "category": "power"
+    },
+    {
+      "id": "smg_payload",
+      "name": "Powder Load",
+      "command": "load",
+      "action": "weapon_stat_add",
+      "weapon_id": "smg",
+      "stat": "damage",
+      "amount": 2,
+      "description": "Smg base damage +2.",
+      "requires_weapon": "smg",
+      "max_picks": 3,
+      "category": "damage",
+      "ranks": [
+        {
+          "amount": 2,
+          "description": "Smg base damage +2."
+        },
+        {
+          "amount": 4,
+          "description": "Smg base damage +4."
+        },
+        {
+          "amount": 6,
+          "description": "Smg base damage +6."
+        }
+      ]
+    },
+    {
+      "id": "pistol_payload",
+      "name": "Dense Slugs",
+      "command": "slug",
+      "action": "weapon_stat_add",
+      "weapon_id": "pistol",
+      "stat": "damage",
+      "amount": 8,
+      "description": "Pistol base damage +8.",
+      "requires_weapon": "pistol",
+      "max_picks": 3,
+      "category": "damage",
+      "ranks": [
+        {
+          "amount": 8,
+          "description": "Pistol base damage +8."
+        },
+        {
+          "amount": 12,
+          "description": "Pistol base damage +12."
+        },
+        {
+          "amount": 18,
+          "description": "Pistol base damage +18."
+        }
+      ]
+    },
+    {
+      "id": "shotgun_payload",
+      "name": "Iron Shot",
+      "command": "iron",
+      "action": "weapon_stat_add",
+      "weapon_id": "shotgun",
+      "stat": "damage",
+      "amount": 2,
+      "description": "Shotgun base damage +2.",
+      "requires_weapon": "shotgun",
+      "max_picks": 3,
+      "category": "damage",
+      "ranks": [
+        {
+          "amount": 2,
+          "description": "Shotgun base damage +2."
+        },
+        {
+          "amount": 3,
+          "description": "Shotgun base damage +3."
+        },
+        {
+          "amount": 5,
+          "description": "Shotgun base damage +5."
+        }
+      ]
+    },
+    {
+      "id": "arc_payload",
+      "name": "Live Current",
+      "command": "live",
+      "action": "weapon_stat_add",
+      "weapon_id": "arc_coil",
+      "stat": "damage",
+      "amount": 6,
+      "description": "Arc Coil base damage +6.",
+      "requires_weapon": "arc_coil",
+      "max_picks": 3,
+      "category": "damage",
+      "ranks": [
+        {
+          "amount": 6,
+          "description": "Arc Coil base damage +6."
+        },
+        {
+          "amount": 10,
+          "description": "Arc Coil base damage +10."
+        },
+        {
+          "amount": 16,
+          "description": "Arc Coil base damage +16."
+        }
+      ]
+    },
+    {
+      "id": "pistol_echo",
+      "name": "Echo Chamber",
+      "command": "echo",
+      "action": "weapon_projectile_add",
+      "weapon_id": "pistol",
+      "requires_weapon": "pistol",
+      "category": "damage",
+      "max_picks": 2,
+      "ranks": [
+        {
+          "amount": 1,
+          "description": "Pistol fires +1 shots per word at separate enemies."
+        },
+        {
+          "amount": 2,
+          "description": "Pistol fires +2 shots per word at separate enemies."
+        }
+      ],
+      "amount": 1,
+      "description": "Pistol fires +1 shots per word at separate enemies."
+    },
+    {
+      "id": "shotgun_pierce",
+      "name": "Drill Shot",
+      "command": "drill",
+      "action": "weapon_stat_add",
+      "weapon_id": "shotgun",
+      "stat": "pierce",
+      "requires_weapon": "shotgun",
+      "category": "crowd",
+      "max_picks": 3,
+      "ranks": [
+        {
+          "amount": 1,
+          "description": "Each shotgun pellet passes through +1 enemies."
+        },
+        {
+          "amount": 2,
+          "description": "Each shotgun pellet passes through +2 enemies."
+        },
+        {
+          "amount": 3,
+          "description": "Each shotgun pellet passes through +3 enemies."
+        }
+      ],
+      "amount": 1,
+      "description": "Each shotgun pellet passes through +1 enemies."
+    },
+    {
+      "id": "pistol_radius",
+      "name": "Wide Detonation",
+      "command": "widen",
+      "action": "weapon_stat_add",
+      "weapon_id": "pistol",
+      "stat": "explosion_radius",
+      "requires_weapon": "pistol",
+      "requires_upgrades": [
+        "pistol_explosion"
+      ],
+      "category": "crowd",
+      "max_picks": 3,
+      "ranks": [
+        {
+          "amount": 24,
+          "description": "Pistol explosion radius +24 pixels."
+        },
+        {
+          "amount": 36,
+          "description": "Pistol explosion radius +36 pixels."
+        },
+        {
+          "amount": 48,
+          "description": "Pistol explosion radius +48 pixels."
+        }
+      ],
+      "amount": 24,
+      "description": "Pistol explosion radius +24 pixels."
+    },
+    {
+      "id": "reaction_radius",
+      "name": "Reaction Bloom",
+      "command": "bloom",
+      "action": "reaction_radius_mult",
+      "category": "crowd",
+      "max_picks": 3,
+      "ranks": [
+        {
+          "factor": 1.2,
+          "description": "Shatter and Overload radius +20%."
+        },
+        {
+          "factor": 1.25,
+          "description": "Shatter and Overload radius +25%."
+        },
+        {
+          "factor": 1.3,
+          "description": "Shatter and Overload radius +30%."
+        }
+      ],
+      "factor": 1.2,
+      "description": "Shatter and Overload radius +20%."
     }
   ]
 }

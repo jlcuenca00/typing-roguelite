@@ -26,7 +26,7 @@ The first prototype intentionally stays small. It is not the full game.
 - 4 weapons
 - 3 effects
 - 2 elemental reactions
-- 21 run upgrades
+- 29 run upgrades
 - 3 priority enemy types
 - 1 elite
 - 1 boss

@@ -79,11 +79,9 @@ func _run() -> void:
 	game.xp_total = 0
 	game._dev_perfect_clear_wave()
 	_check(game.xp_total == 68, "Dev clear bypasses wave XP budget")
+	var expected_sizes := [8, 12, 18, 26, 36, 48, 64, 80, 100, 120]
 	for wave in range(1, 11):
-		for sample in range(200):
-			var batch: int = game._spawn_batch_for_wave(wave)
-			_check(batch >= (2 if wave >= 9 else 1), "Batch too small")
-			_check(batch <= (3 if wave >= 9 else 2 if wave >= 5 else 1), "Batch too large")
+		_check(game._horde_size_for_wave(wave) == expected_sizes[wave - 1], "Horde size mismatch")
 	print("Mean planned bodies per wave (100 seeds): ", totals)
 	print("Horde balance failures: ", failures)
 	game.free()
